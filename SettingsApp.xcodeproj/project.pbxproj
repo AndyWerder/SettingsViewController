@@ -7,21 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E16009CB188DDAF5007E1203 /* SettingsAppTests-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = E16009C7188DDA37007E1203 /* SettingsAppTests-Info.plist */; };
+		E16009CD188DDB7E007E1203 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = E16009CC188DDB7E007E1203 /* InfoPlist.strings */; };
+		E16009CF188DEDD4007E1203 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A7C188CADCD00AE3E40 /* XCTest.framework */; };
 		E1652A5B188CADCD00AE3E40 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A5A188CADCD00AE3E40 /* Foundation.framework */; };
 		E1652A5D188CADCD00AE3E40 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A5C188CADCD00AE3E40 /* CoreGraphics.framework */; };
 		E1652A5F188CADCD00AE3E40 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A5E188CADCD00AE3E40 /* UIKit.framework */; };
 		E1652A65188CADCD00AE3E40 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = E1652A63188CADCD00AE3E40 /* InfoPlist.strings */; };
 		E1652A67188CADCD00AE3E40 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A66188CADCD00AE3E40 /* main.m */; };
 		E1652A6B188CADCD00AE3E40 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A6A188CADCD00AE3E40 /* AppDelegate.m */; };
-		E1652A6E188CADCD00AE3E40 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = E1652A6C188CADCD00AE3E40 /* Main.storyboard */; };
 		E1652A71188CADCD00AE3E40 /* MasterViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A70188CADCD00AE3E40 /* MasterViewController.m */; };
-		E1652A74188CADCD00AE3E40 /* DetailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A73188CADCD00AE3E40 /* DetailViewController.m */; };
 		E1652A76188CADCD00AE3E40 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1652A75188CADCD00AE3E40 /* Images.xcassets */; };
-		E1652A7D188CADCD00AE3E40 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A7C188CADCD00AE3E40 /* XCTest.framework */; };
 		E1652A7E188CADCD00AE3E40 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A5A188CADCD00AE3E40 /* Foundation.framework */; };
 		E1652A7F188CADCD00AE3E40 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1652A5E188CADCD00AE3E40 /* UIKit.framework */; };
-		E1652A87188CADCD00AE3E40 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = E1652A85188CADCD00AE3E40 /* InfoPlist.strings */; };
-		E1652A89188CADCD00AE3E40 /* SettingsAppTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A88188CADCD00AE3E40 /* SettingsAppTests.m */; };
+		E1652A94188CAE8400AE3E40 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = E1652A93188CAE8400AE3E40 /* SettingsViewController.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +34,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E16009C7188DDA37007E1203 /* SettingsAppTests-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "SettingsAppTests-Info.plist"; sourceTree = "<group>"; };
+		E16009CC188DDB7E007E1203 /* InfoPlist.strings */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; path = InfoPlist.strings; sourceTree = "<group>"; };
 		E1652A57188CADCD00AE3E40 /* SettingsApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SettingsApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1652A5A188CADCD00AE3E40 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		E1652A5C188CADCD00AE3E40 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -45,17 +46,13 @@
 		E1652A68188CADCD00AE3E40 /* SettingsApp-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SettingsApp-Prefix.pch"; sourceTree = "<group>"; };
 		E1652A69188CADCD00AE3E40 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		E1652A6A188CADCD00AE3E40 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		E1652A6D188CADCD00AE3E40 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		E1652A6F188CADCD00AE3E40 /* MasterViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MasterViewController.h; sourceTree = "<group>"; };
 		E1652A70188CADCD00AE3E40 /* MasterViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MasterViewController.m; sourceTree = "<group>"; };
-		E1652A72188CADCD00AE3E40 /* DetailViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DetailViewController.h; sourceTree = "<group>"; };
-		E1652A73188CADCD00AE3E40 /* DetailViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DetailViewController.m; sourceTree = "<group>"; };
 		E1652A75188CADCD00AE3E40 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		E1652A7B188CADCD00AE3E40 /* SettingsAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SettingsAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1652A7C188CADCD00AE3E40 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
-		E1652A84188CADCD00AE3E40 /* SettingsAppTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "SettingsAppTests-Info.plist"; sourceTree = "<group>"; };
-		E1652A86188CADCD00AE3E40 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		E1652A88188CADCD00AE3E40 /* SettingsAppTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SettingsAppTests.m; sourceTree = "<group>"; };
+		E1652A92188CAE8400AE3E40 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SettingsViewController.h; sourceTree = "<group>"; };
+		E1652A93188CAE8400AE3E40 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SettingsViewController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,7 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1652A7D188CADCD00AE3E40 /* XCTest.framework in Frameworks */,
+				E16009CF188DEDD4007E1203 /* XCTest.framework in Frameworks */,
 				E1652A7F188CADCD00AE3E40 /* UIKit.framework in Frameworks */,
 				E1652A7E188CADCD00AE3E40 /* Foundation.framework in Frameworks */,
 			);
@@ -82,11 +79,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		E16009C6188DDA37007E1203 /* SettingsAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				E16009CC188DDB7E007E1203 /* InfoPlist.strings */,
+				E16009C7188DDA37007E1203 /* SettingsAppTests-Info.plist */,
+			);
+			path = SettingsAppTests;
+			sourceTree = "<group>";
+		};
 		E1652A4E188CADCD00AE3E40 = {
 			isa = PBXGroup;
 			children = (
 				E1652A60188CADCD00AE3E40 /* SettingsApp */,
-				E1652A82188CADCD00AE3E40 /* SettingsAppTests */,
 				E1652A59188CADCD00AE3E40 /* Frameworks */,
 				E1652A58188CADCD00AE3E40 /* Products */,
 			);
@@ -117,13 +122,13 @@
 			children = (
 				E1652A69188CADCD00AE3E40 /* AppDelegate.h */,
 				E1652A6A188CADCD00AE3E40 /* AppDelegate.m */,
-				E1652A6C188CADCD00AE3E40 /* Main.storyboard */,
 				E1652A6F188CADCD00AE3E40 /* MasterViewController.h */,
 				E1652A70188CADCD00AE3E40 /* MasterViewController.m */,
-				E1652A72188CADCD00AE3E40 /* DetailViewController.h */,
-				E1652A73188CADCD00AE3E40 /* DetailViewController.m */,
+				E1652A92188CAE8400AE3E40 /* SettingsViewController.h */,
+				E1652A93188CAE8400AE3E40 /* SettingsViewController.m */,
 				E1652A75188CADCD00AE3E40 /* Images.xcassets */,
 				E1652A61188CADCD00AE3E40 /* Supporting Files */,
+				E16009C6188DDA37007E1203 /* SettingsAppTests */,
 			);
 			path = SettingsApp;
 			sourceTree = "<group>";
@@ -135,24 +140,6 @@
 				E1652A63188CADCD00AE3E40 /* InfoPlist.strings */,
 				E1652A66188CADCD00AE3E40 /* main.m */,
 				E1652A68188CADCD00AE3E40 /* SettingsApp-Prefix.pch */,
-			);
-			name = "Supporting Files";
-			sourceTree = "<group>";
-		};
-		E1652A82188CADCD00AE3E40 /* SettingsAppTests */ = {
-			isa = PBXGroup;
-			children = (
-				E1652A88188CADCD00AE3E40 /* SettingsAppTests.m */,
-				E1652A83188CADCD00AE3E40 /* Supporting Files */,
-			);
-			path = SettingsAppTests;
-			sourceTree = "<group>";
-		};
-		E1652A83188CADCD00AE3E40 /* Supporting Files */ = {
-			isa = PBXGroup;
-			children = (
-				E1652A84188CADCD00AE3E40 /* SettingsAppTests-Info.plist */,
-				E1652A85188CADCD00AE3E40 /* InfoPlist.strings */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -204,6 +191,9 @@
 				LastUpgradeCheck = 0500;
 				ORGANIZATIONNAME = "Andreas Werder";
 				TargetAttributes = {
+					E1652A56188CADCD00AE3E40 = {
+						DevelopmentTeam = 8PAML6EF5Q;
+					};
 					E1652A7A188CADCD00AE3E40 = {
 						TestTargetID = E1652A56188CADCD00AE3E40;
 					};
@@ -235,7 +225,6 @@
 			files = (
 				E1652A76188CADCD00AE3E40 /* Images.xcassets in Resources */,
 				E1652A65188CADCD00AE3E40 /* InfoPlist.strings in Resources */,
-				E1652A6E188CADCD00AE3E40 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,7 +232,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1652A87188CADCD00AE3E40 /* InfoPlist.strings in Resources */,
+				E16009CB188DDAF5007E1203 /* SettingsAppTests-Info.plist in Resources */,
+				E16009CD188DDB7E007E1203 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,8 +246,8 @@
 			files = (
 				E1652A6B188CADCD00AE3E40 /* AppDelegate.m in Sources */,
 				E1652A71188CADCD00AE3E40 /* MasterViewController.m in Sources */,
+				E1652A94188CAE8400AE3E40 /* SettingsViewController.m in Sources */,
 				E1652A67188CADCD00AE3E40 /* main.m in Sources */,
-				E1652A74188CADCD00AE3E40 /* DetailViewController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -265,7 +255,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1652A89188CADCD00AE3E40 /* SettingsAppTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -284,22 +273,6 @@
 			isa = PBXVariantGroup;
 			children = (
 				E1652A64188CADCD00AE3E40 /* en */,
-			);
-			name = InfoPlist.strings;
-			sourceTree = "<group>";
-		};
-		E1652A6C188CADCD00AE3E40 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				E1652A6D188CADCD00AE3E40 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-		E1652A85188CADCD00AE3E40 /* InfoPlist.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				E1652A86188CADCD00AE3E40 /* en */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
@@ -386,6 +359,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "SettingsApp/SettingsApp-Prefix.pch";
 				INFOPLIST_FILE = "SettingsApp/SettingsApp-Info.plist";
@@ -399,6 +373,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "SettingsApp/SettingsApp-Prefix.pch";
 				INFOPLIST_FILE = "SettingsApp/SettingsApp-Info.plist";
@@ -410,6 +385,7 @@
 		E1652A90188CADCD00AE3E40 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/SettingsApp.app/SettingsApp";
 				FRAMEWORK_SEARCH_PATHS = (
@@ -433,6 +409,7 @@
 		E1652A91188CADCD00AE3E40 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/SettingsApp.app/SettingsApp";
 				FRAMEWORK_SEARCH_PATHS = (
@@ -468,6 +445,7 @@
 				E1652A8E188CADCD00AE3E40 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		E1652A8F188CADCD00AE3E40 /* Build configuration list for PBXNativeTarget "SettingsAppTests" */ = {
 			isa = XCConfigurationList;
@@ -476,6 +454,7 @@
 				E1652A91188CADCD00AE3E40 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
