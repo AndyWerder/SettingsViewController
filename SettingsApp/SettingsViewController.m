@@ -5,10 +5,11 @@
 //  Created by Andreas Werder on 1/12/14.
 //  Copyright (c) 2014 Material Apps. All rights reserved.
 //
-//  Changes history:
-//  2014-01-12  Initial implementation - totally property list driven
-//  2014-01-26  Added implementation of settings type Action (button)
-//  2014-01-27  Added implementation of settings type simple list
+//  Permission is given to use this source code file, free of charge, in any
+//  project, commercial or otherwise, entirely at your risk, with the condition
+//  that any redistribution (in part or whole) of source code must retain
+//  this copyright and permission notice. Attribution in compiled projects is
+//  appreciated but not required.
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
 //  application specific settings. The implementation is based on the tableView in Grouped
