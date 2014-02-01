@@ -124,6 +124,13 @@
     NSString *capitalized = @"c";
     NSString *secure = @"s";
     
+    NSString *header = @"The SettingsViewController supports strings, numbers, boolean values and multi-value " \
+                        "choices. Furthermore it allows to have nested property list. A row on level 1 can consist " \
+                        "of a group (or section) of properties on level 2.";
+    NSString *footer = @"Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor" \
+                        "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud" \
+                        "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ";
+    
     // Set up property sub-list for user account, login ID, email etc.
     NSArray *login = @[
                       P_ROW(@"Name", SPTypeString, null, YES, UIKeyboardTypeAlphabet, capitalized, @"fullname"),
@@ -142,8 +149,8 @@
                           ];
     
     NSArray *subPlist = @[
-                          P_SECTION(@"User", null, login, null),
-                          P_SECTION(@"Subscription", null, userType, null)
+                          P_SECTION(@"User", null, login, @"To validate login, please use Log In button"),
+                          P_SECTION(@"Subscription", null, userType, footer)
                           ];
     
     // Set up top-level (main) property list
@@ -177,8 +184,8 @@
     // Define groups on top level
     NSArray *plist = @[
                        P_SECTION(@"User", null, user, null),
-                       P_SECTION(@"General", null, general, null),
-                       P_SECTION(@"Level", null, level, null),
+                       P_SECTION(@"General", header, general, null),
+                       P_SECTION(@"Level", null, level, @"A footer text"),
                        ];
     
     return plist;
@@ -222,11 +229,11 @@
     // the property list.
     
     NSDictionary *values = @{
-                             @"fullname":       @"Andreas Werder",
-                             @"userId":         @"andreas",
-                             @"password":       @"changeit",
-                             @"emailAddress":   @"andreas.werder@yahoo.com",
-                             @"background":     @"White",
+                             @"fullname":       @"Guest",
+                             @"userId":         @"guest",
+                             @"password":       @"anon",
+                             @"emailAddress":   @"guest.name@gmail.com",
+                             @"background":     @(BackgroundColorWhite),
                              @"iCloud":         @(YES),
                              @"option":         @(NO),
                              @"level":          @(1),

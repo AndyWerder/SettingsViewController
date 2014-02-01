@@ -1,7 +1,7 @@
 SettingsViewController
 ======================
 
-Self-contained class to provide an iPad Settings app-like user interface for managing application specific settings. The implementation is based on the tableView in Grouped style and supports multiple nesting levels. The settings are managed by a property list provided and kept in an NSDictionary as property. The property list is built outside of the class. The SettingsViewController.h file provides macros for facilitating the building the property list.
+Self-contained class to provide an iPad Settings app-like user interface for managing application specific settings. SettingsViewController is a subclass of UITableView and uses the grouped style. It supports multiple nesting levels. The settings are managed by a property list kept in an NSDictionary as properties. The property list is built outside of the class. The SettingsViewController.h file provides macros for facilitating the building the property list.
 
 SettingsViewController supports several types of settings:
 
@@ -11,7 +11,7 @@ Single level types
 - **Integer32:** Yet to be implemented
 - **Float:** Same as above
 - **Boolean**: The user interface for Boolean settings is based on the switch (UISwitch) control.
-- **Simple list:* A list of mutually exclusive choices. The value of the selected row becomes the result. The simple list is similar to the multi-value list except that it presents all choices on the current level.
+- **Simple list:** A list of mutually exclusive choices. The value of the selected row becomes the result. The simple list is similar to the multi-value list except that it presents all choices on the current level.
 
 Multi-level types  
 -----------------

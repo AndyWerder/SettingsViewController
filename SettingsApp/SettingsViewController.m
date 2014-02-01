@@ -5,17 +5,18 @@
 //  Created by Andreas Werder on 1/12/14.
 //  Copyright (c) 2014 Material Apps. All rights reserved.
 //
-//  Changes history:
-//  2014-01-12  Initial implementation - totally property list driven
-//  2014-01-26  Added implementation of settings type Action (button)
-//  2014-01-27  Added implementation of settings type simple list
+//  Permission is given to use this source code file, free of charge, in any
+//  project, commercial or otherwise, entirely at your risk, with the condition
+//  that any redistribution (in part or whole) of source code must retain
+//  this copyright and permission notice. Attribution in compiled projects is
+//  appreciated but not required.
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
-//  application specific settings. The implementation is based on the tableView in Grouped
-//  style and supports multiple nesting levels. The settings are managed by a property list
-//  provided and kept in an NSDictionary as property. The property list is built outside
-//  of the class. The SettingsViewController.h file provides macros for facilitating the
-//  building the property list.
+//  application specific settings. SettingsViewController is a subclass of UITableView and
+//  uses the grouped style. It supports multiple nesting levels. The settings are managed
+//  by a property list kept in an NSDictionary as properties. The property list is built
+//  outside of the class. The SettingsViewController.h file provides macros for facilitating
+//  the building the property list.
 //
 //  SettingsViewController supports several types of settings:
 //  Single level types:
@@ -77,6 +78,7 @@
 #import "SettingsViewController.h"
 
 static NSString *cellIdentifier;
+static NSString *headerViewIdentifier;
 
 @interface SettingsViewController () {
     
@@ -112,6 +114,10 @@ static NSString *cellIdentifier;
         cellIdentifier = @"SettingsViewCell";
         [self.tableView registerClass:[SettingsViewCell class]
                forCellReuseIdentifier:cellIdentifier];
+        
+        headerViewIdentifier = @"SectionHeaderView";
+        [self.tableView registerClass:[UITableViewHeaderFooterView class]
+            forHeaderFooterViewReuseIdentifier:headerViewIdentifier];
     }
     
     return self;
@@ -258,6 +264,8 @@ static NSString *cellIdentifier;
     return canEdit;
 }
 
+#pragma mark - Table view header and footer view definitions
+
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     
     // We display the section title for all types of properties except a multi-value list
@@ -272,6 +280,110 @@ static NSString *cellIdentifier;
     
     return title;
 }
+
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    
+    // The tableView:heightForHeaderInSection: delegate method must be present so that
+    // the tableView:viewForHeaderInSection: is called. 
+
+    CGFloat headerHeight = UITableViewAutomaticDimension;
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    NSString *header = [[pList objectAtIndex:section] valueForKey:@"header"];
+    
+    if (type != SPTypeMultiValue && ![header isEqual:[NSNull null]]) {
+        CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
+        UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        CGRect frame = [header boundingRectWithSize:maximumLabelSize
+                                                 options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
+                                              attributes:@{NSFontAttributeName: font}
+                                                 context:nil];
+        headerHeight = 50.0 + frame.size.height;
+        NSLog(@"*** Header size(%i) ", (int)frame.size.height);
+    }
+    return headerHeight;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    
+    // Provide a reusable tableview header/footer view if a header text is present. Otherwise
+    // just return nil and let the viewController deal with sizing the view.
+
+    NSString *title, *header;
+    UITableViewHeaderFooterView *sectionHeaderView;
+    
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    sectionHeaderView = [tableView dequeueReusableHeaderFooterViewWithIdentifier:headerViewIdentifier];
+    
+    if (type != SPTypeMultiValue) {
+        title = [[pList objectAtIndex:section] valueForKey:@"title"];
+        header = [[pList objectAtIndex:section] valueForKey:@"header"];
+    } else {
+        title = @"";
+        header = [[pList objectAtIndex:section] valueForKey:@"header"];
+    }
+    
+    // If we have a title we just use the default header for a group title. If the title is empty but
+    // the header is defined we use a header instead and provide a view. The header text will then
+    // go into the text field of the detail label.
+
+    if ([title length] > 0) {
+        [sectionHeaderView.textLabel setText:title];
+    }
+    
+    if (![header isEqual:[NSNull null]]) {
+        if ([header length] > 0) {
+            [sectionHeaderView.textLabel setText:title];
+            [sectionHeaderView.detailTextLabel setText:header];
+        }
+    }
+    return sectionHeaderView;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section {
+    
+    // The tableView:heightForFooterInSection: delegate method must be present so that
+    // the tableView:viewForFooterInSection: is called.
+    
+    CGFloat footerHeight = UITableViewAutomaticDimension;
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    NSString *footer = [[pList objectAtIndex:section] valueForKey:@"footer"];
+    
+    if (type != SPTypeMultiValue && ![footer isEqual:[NSNull null]]) {
+        CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
+        UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        CGRect frame = [footer boundingRectWithSize:maximumLabelSize
+                                            options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
+                                         attributes:@{NSFontAttributeName: font}
+                                            context:nil];
+        footerHeight = MAX(28.0, frame.size.height);
+        NSLog(@"*** Footer size(%i) ", (int)footerHeight);
+    }
+    return footerHeight;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForFooterInSection:(NSInteger)section {
+    
+    // Provide a reusable tableview header/footer view if a header text is present. Otherwise
+    // just return nil and let the viewController deal with sizing the view.
+    
+    NSString *footer = [[pList objectAtIndex:section] valueForKey:@"footer"];
+    UITableViewHeaderFooterView *sectionFooterView;
+    
+    sectionFooterView = [tableView dequeueReusableHeaderFooterViewWithIdentifier:headerViewIdentifier];
+    
+    // If we have a title we just use the default header for a group title. If the title is empty but
+    // the header is defined we use a header instead and provide a view. The header text will then
+    // go into the text field of the detail label.
+    
+    if (![footer isEqual:[NSNull null]]) {
+        if ([footer length] > 0) {
+            [sectionFooterView.textLabel setText:footer];
+        }
+    }
+    return sectionFooterView;
+}
+
+#pragma mark - Table view cell configuration
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     
@@ -598,10 +710,6 @@ static NSString *cellIdentifier;
 
 @end
 
-@interface SettingsViewCell ()
-- (void)buttonSelected:(id)sender;
-@end
-
 
 @implementation SettingsViewCell
 
@@ -652,7 +760,6 @@ static NSString *cellIdentifier;
             // the UITableViewCellStyleValue1 style has the detailTextLabel right justified but we
             // want it to be left justified.
             
-            // NSLog(@"String: DetailFrame(%@) width(%i) text(%@)", NSStringFromCGRect(detailFrame), indent, self.detailTextLabel.text);
             textFrame = (CGRect){indent, detailFrame.origin.y,
                 self.contentView.frame.size.width - indent - 50.0f, detailFrame.size.height};
             [self.textField setText:self.detailTextLabel.text];
