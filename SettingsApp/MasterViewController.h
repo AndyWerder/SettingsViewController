@@ -7,11 +7,28 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "SettingsViewController.h"
 
 @class DetailViewController;
 
-@interface MasterViewController : UITableViewController
+typedef enum {
+  
+    BackgroundColorWhite = 0,
+    BackgroundColorYellow,
+    BackgroundColorGreeen,
+    BackgroundColorBlue
+    
+} BackgroundColor;
+
+
+@interface MasterViewController : UITableViewController <SettingsViewControllerDelegate>
 
 @property (strong, nonatomic) DetailViewController *detailViewController;
+
+- (void)settings;
+
+@end
+
+@interface MasterViewControllerCell : UITableViewCell
 
 @end
