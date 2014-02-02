@@ -91,6 +91,8 @@
     //      must be adopted so that control to the involing MasterViewController is returned
     //      through a popViewControllerAnimated: call.
     //
+    //  as an input parameter to the init method. The view controller must be presented
+    //  within a navigation controller.
     
     NSArray *keys = [self pListKeys];
     isFLipped = NO;
