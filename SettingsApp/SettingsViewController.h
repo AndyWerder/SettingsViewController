@@ -19,6 +19,7 @@ typedef enum {
     SPTypeString,
     SPTypeInteger32,
     SPTypeBoolean,
+    SPTypeMultilineText,
     SPTypeSimpleList,
     SPTypeChoice,            // This is used for MultiValue type on the lower level
     SPTypeMultiLevel = 10,
@@ -76,10 +77,11 @@ typedef enum {
 
 @end
 
-@interface SettingsViewCell : UITableViewCell <UITextFieldDelegate>
+@interface SettingsViewCell : UITableViewCell <UITextFieldDelegate, UITextViewDelegate>
 
 @property (nonatomic, strong) NSDictionary *rowDictionary;
 @property (readonly, strong) UITextField *textField;
+@property (nonatomic, strong) UITextView *textView;
 @property (nonatomic, strong) UIButton *button;
 @property (nonatomic, weak) SettingsViewController *viewController;
 

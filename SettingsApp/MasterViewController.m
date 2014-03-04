@@ -189,6 +189,7 @@
                          ];
 
     // The Level group is a simple list and provides the choice between BEGINNER and EXPERT level.
+    // Note that a simple list should only have one row per section; other rows will be ignored.
     NSArray *levels = @[
                         P_MULTIVALUE(@"Beginner", @(1)),
                         P_MULTIVALUE(@"Expert", @(2)),
@@ -196,11 +197,24 @@
     NSArray *level = @[
                        P_ROW(@"Level", SPTypeSimpleList, levels, YES, 0, noFlags, @"level"),
                        ];
+
+    // Example of a multi-line text view.
+    NSArray *response = @[
+                          P_MULTIVALUE(@"Reply", @(1)),
+                          P_MULTIVALUE(@"Reply to All", @(2)),
+                          P_MULTIVALUE(@"Forward", @(3)),
+                          ];
+    
+    NSArray *message = @[
+                         P_ROW(@"Message Response", SPTypeMultiValue, response, YES, UIKeyboardTypeDefault, noFlags, @"response"),
+                         P_ROW(@"Instructions", SPTypeMultilineText, @"This is a text view", YES, UIKeyboardTypeAlphabet, @"a", @"textView")
+                         ];
     
     // Define groups on top level
     NSArray *plist = @[
                        P_SECTION(@"User", null, user, null),
                        P_SECTION(@"General", header, general, null),
+                       P_SECTION(@"Message", null, message, null),
                        P_SECTION(@"Level", null, level, @"A footer text"),
                        ];
     
@@ -253,6 +267,7 @@
                              @"iCloud":         @(YES),
                              @"option":         @(NO),
                              @"level":          @(1),
+                             @"textView":       @"1\n2\n3\n4\n5"
                              };
     return values;
 }

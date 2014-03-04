@@ -11,7 +11,6 @@ Single level types
 - **Integer32:** Yet to be implemented
 - **Float:** Same as above
 - **Boolean**: The user interface for Boolean settings is based on the switch (UISwitch) control.
-- **Multi-line text:** Provides a textView that spans across the entire cell for free text entry and editing.
 - **Simple list:** A list of mutually exclusive choices. The value of the selected row becomes the result. The simple list is similar to the multi-value list except that it presents all choices on the current level.
 
 Multi-level types  

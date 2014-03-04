@@ -26,6 +26,8 @@
 //  - Integer           Yet to be implemented
 //  - Boolean           The user interface for Boolean settings is based on the switch
 //                      (UISwitch) control.
+//  - Multi-line text   Provides a textView that spans across the entire cell for free text
+//                      entry and editing.
 //  - Simple list       A list of mutually exclusive choices. The value of the selected
 //                      row becomes the result. The simple list is similar to the multi-
 //                      value list except that it presents all choices on the current
@@ -236,8 +238,8 @@ static NSString *headerViewIdentifier;
     numberOfRows = [rows count];
     
     if (numberOfRows == 1 && [[[rows firstObject] valueForKey:@"type"] integerValue] == SPTypeSimpleList) {
-        NSArray *foo = [[rows valueForKey:@"value"] firstObject];
-        numberOfRows = [foo count];
+        NSArray *choices = [[rows valueForKey:@"value"] firstObject];
+        numberOfRows = [choices count];
     }
     
     return numberOfRows;
@@ -262,6 +264,36 @@ static NSString *headerViewIdentifier;
             canEdit = NO;
     }
     return canEdit;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    
+    CGFloat rowHeight = UITableViewAutomaticDimension;
+    NSDictionary *section = [pList objectAtIndex:indexPath.section];
+    NSArray *rows = [section valueForKey:@"rows"];
+
+    // We first need to check if this is a simple list to avoid index out of range error; then
+    // we check if we have a multi-line text view. If so, we take a height large enough for a bunch
+    // of lines.
+    
+    if ([[[rows firstObject] valueForKey:@"type"] integerValue] != SPTypeSimpleList) {
+        NSDictionary *row = [rows objectAtIndex:indexPath.row];
+        SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:@"type"] integerValue];
+        if (type == SPTypeMultilineText) {
+            
+            NSString *detailText = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
+            CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
+            UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+            CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
+                                                options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
+                                             attributes:@{NSFontAttributeName: font}
+                                                context:nil];
+            rowHeight = MAX(120.0, frame.size.height);
+            NSLog(@"*** Row size(%i) ", (int)rowHeight);
+        }
+    }
+
+    return rowHeight;
 }
 
 #pragma mark - Table view header and footer view definitions
@@ -441,7 +473,7 @@ static NSString *headerViewIdentifier;
                 if (autocorrect)
                     [cell.textField setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
-                    [cell.textField setAutocorrectionType:UITextAutocorrectionTypeYes];
+                    [cell.textField setAutocorrectionType:UITextAutocorrectionTypeNo];
             }
             // Obfuscate text string, e.g. a password.
             if (secure)
@@ -466,6 +498,33 @@ static NSString *headerViewIdentifier;
             [accessoryView addTarget:cell action:@selector(switchOnOff:)
                     forControlEvents:UIControlEventValueChanged];
             [accessoryView setUserInteractionEnabled:editable];
+            break;
+            
+        case SPTypeMultilineText:
+            cell.textView = [[UITextView alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, 400.0f}];
+            [cell.textView setDelegate:cell];
+            [cell.textView setBackgroundColor:[UIColor clearColor]];
+            
+            [cell.textView setTextAlignment:NSTextAlignmentLeft];
+            [cell.textView setUserInteractionEnabled:YES];
+            [cell.textView setReturnKeyType:UIReturnKeyDefault];
+            
+            [cell.detailTextLabel setText:(NSString *)value];
+            [cell.textField setEnabled:editable];
+
+            if (editable) {
+                keyboardType = [[rowDictionary valueForKey:@"kbType"] integerValue];
+                [cell.textView setKeyboardType:keyboardType];
+                if (capitalized)
+                    [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeWords];
+                else
+                    [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeNone];
+                if (autocorrect)
+                    [cell.textView setAutocorrectionType:UITextAutocorrectionTypeYes];
+                else
+                    [cell.textView setAutocorrectionType:UITextAutocorrectionTypeNo];
+            }
+
             break;
             
         case SPTypeSimpleList:
@@ -713,7 +772,7 @@ static NSString *headerViewIdentifier;
 
 @implementation SettingsViewCell
 
-@synthesize textField, rowDictionary, viewController, button;
+@synthesize textField, textView, rowDictionary, viewController, button;
 
 - (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
     
@@ -731,6 +790,8 @@ static NSString *headerViewIdentifier;
         [textField setReturnKeyType:UIReturnKeyDone];
     }
     
+    textView = nil;
+    
     return self;
 }
 
@@ -738,12 +799,16 @@ static NSString *headerViewIdentifier;
     
     // Let the labels size themselves to accommodate their text
     [super layoutSubviews];
-    // NSLog(@"Cell(%i) name(%@)", self.tag, [rowDictionary valueForKey:@"identifier"]);
+    NSLog(@"Cell(%i) name(%@)", self.tag, [rowDictionary valueForKey:@"identifier"]);
     
     [self.textLabel sizeToFit];
     [self.detailTextLabel sizeToFit];
     CGRect textFrame, detailFrame = self.detailTextLabel.frame;
     CGFloat offset = -20.0f;
+
+    // We need to reset some cell type specific view in order to avoid confusion.
+    [self.textField removeFromSuperview];
+    [self.textView removeFromSuperview];
     
     // To align settings values nicely we use kind of tabs. A text label should start at
     // one of the tab stops.
@@ -767,9 +832,31 @@ static NSString *headerViewIdentifier;
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textField setFrame:textFrame];
             [self.contentView addSubview:textField];
+            [self.textLabel setHidden:NO];
             [self.detailTextLabel setHidden:YES];
             
             break;
+            
+        case SPTypeMultilineText:
+
+            // A multi-line textView extends over the enire row and hides the text label. We take
+            // the textLabel x-origin for the textView's origin. The height is given by the cell's
+            // height which has been properly calculated in the tableView:heightForRowAtIndexPath:
+            // delegate method.
+
+            detailFrame = self.textLabel.frame;
+            textFrame = (CGRect){detailFrame.origin.x, 0.0f,
+                self.contentView.frame.size.width - detailFrame.origin.x, self.frame.size.height};
+            [self.textView setText:self.detailTextLabel.text];
+            [self.textView setFont:[UIFont systemFontOfSize:self.detailTextLabel.font.pointSize]];
+            [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
+            [self.textView setFrame:textFrame];
+            [self.contentView addSubview:textView];
+            [self.textLabel setHidden:YES];
+            [self.detailTextLabel setHidden:YES];
+            
+            break;
+            
         case SPTypeMultiValue:
             
             // Multi-value properties cannot be changed on this level and so the current value is
@@ -783,12 +870,15 @@ static NSString *headerViewIdentifier;
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textField setFrame:textFrame];
             [self.contentView addSubview:textField];
+            [self.textLabel setHidden:NO];
             [self.detailTextLabel setHidden:YES];
             
             break;
         default:
             
             [self.detailTextLabel setHidden:NO];
+            [self.textLabel setHidden:NO];
+
             break;
     }
 }
@@ -867,6 +957,14 @@ static NSString *headerViewIdentifier;
     
     // Dismiss keyboard, give up first responder capability. Triggered when the user hits return on the keyboard.
     [aTextField resignFirstResponder];
+    return YES;
+}
+
+- (BOOL)textViewShouldEndEditing:(UITextView *)aTextView {
+    
+    // Dismiss keyboard, give up first responder capability. Triggered when the user hits return on the keyboard.
+    [aTextView resignFirstResponder];
+    [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
     return YES;
 }
 
