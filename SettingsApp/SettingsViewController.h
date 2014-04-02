@@ -20,6 +20,7 @@ typedef enum {
     SPTypeInteger32,
     SPTypeBoolean,
     SPTypeMultilineText,
+    SPTypeHTML,
     SPTypeSimpleList,
     SPTypeChoice,            // This is used for MultiValue type on the lower level
     SPTypeMultiLevel = 10,
@@ -60,7 +61,10 @@ typedef enum {
 @protocol SettingsViewControllerDelegate <NSObject>
 
 - (NSDictionary *)settingsInput:(id)sender;
+
+@optional
 - (void)settingsDidChange:(id)value forKey:(NSString *)name;
+- (void)willDismissModalView:(id)sender;
 - (void)didDismissModalView:(id)sender;
 
 @end
@@ -74,6 +78,7 @@ typedef enum {
 @property (nonatomic, assign) NSInteger nestingLevel;
 
 - (id)initWithProperties:(NSArray *)properties;
+- (void)didChange:(id)value forKey:(NSString *)name;
 
 @end
 
@@ -82,6 +87,7 @@ typedef enum {
 @property (nonatomic, strong) NSDictionary *rowDictionary;
 @property (readonly, strong) UITextField *textField;
 @property (nonatomic, strong) UITextView *textView;
+@property (nonatomic, strong) UIWebView *webView;
 @property (nonatomic, strong) UIButton *button;
 @property (nonatomic, weak) SettingsViewController *viewController;
 

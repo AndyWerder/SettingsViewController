@@ -5,11 +5,12 @@
 //  Created by Andreas Werder on 1/12/14.
 //  Copyright (c) 2014 Material Apps. All rights reserved.
 //
-//  Permission is given to use this source code file, free of charge, in any
-//  project, commercial or otherwise, entirely at your risk, with the condition
-//  that any redistribution (in part or whole) of source code must retain
-//  this copyright and permission notice. Attribution in compiled projects is
-//  appreciated but not required.
+//  Changes history:
+//  2014-01-12  Initial implementation - totally property list driven
+//  2014-01-26  Added implementation of settings type Action (button)
+//  2014-01-27  Added implementation of settings type simple list
+//  2014-03-03  Added implementation of settings type multi-line text view
+//  2014-03-09  Added implementation of settings type HTML text view
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
 //  application specific settings. SettingsViewController is a subclass of UITableView and
@@ -28,6 +29,8 @@
 //                      (UISwitch) control.
 //  - Multi-line text   Provides a textView that spans across the entire cell for free text
 //                      entry and editing.
+//  - HTML              Provides a webView that spans across the entire cell for presenting
+//                      HTML content.
 //  - Simple list       A list of mutually exclusive choices. The value of the selected
 //                      row becomes the result. The simple list is similar to the multi-
 //                      value list except that it presents all choices on the current
@@ -182,22 +185,28 @@ static NSString *headerViewIdentifier;
     // Captures a changed value and updates the valueOut mutable dictionary. It also
     // re-builds the valueIn dictionary. When completed it then gives the protocol delegate
     // a chance to take action.
+    // Only change the value if it is different from the previous generation.
     
-    NSLog(@"Changing value for key(%@), replacing new(%@) for old(%@)", name, value,
-          [valuesIn valueForKey:name]);
-    NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:name];
-    [valuesOut addEntriesFromDictionary:dictionary];
-    valuesIn = [self mergeValues:valuesOut];
-    
-    // Invoke protocol delegate method if defined.
-    if ([delegate respondsToSelector:@selector(settingsDidChange:forKey:)])
-        [delegate performSelector:@selector(settingsDidChange:forKey:) withObject:value withObject:name];
+    if (![value isEqual:[valuesIn valueForKey:name]]) {
+        // NSLog(@"Changing value for key(%@), replacing new(%@) for old(%@)", name, value,
+        //      [valuesIn valueForKey:name]);
+        NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:name];
+        [valuesOut addEntriesFromDictionary:dictionary];
+        valuesIn = [self mergeValues:valuesOut];
+        
+        // Invoke protocol delegate method if defined.
+        if ([delegate respondsToSelector:@selector(settingsDidChange:forKey:)])
+            [delegate performSelector:@selector(settingsDidChange:forKey:) withObject:value withObject:name];
+    }
 }
 
 - (void)dismissView:(id)sender {
     
-    // Call the delegate to dismiss the modal view
-    [delegate didDismissModalView:sender];
+    // Call the two delegate methods to dismiss the modal view.
+    if ([delegate respondsToSelector:@selector(willDismissModalView:)])
+        [delegate willDismissModalView:sender];
+    if ([delegate respondsToSelector:@selector(didDismissModalView:)])
+        [delegate didDismissModalView:sender];
 }
 
 - (NSDictionary *)mergeValues:(NSMutableDictionary *)updatedKeys {
@@ -271,6 +280,7 @@ static NSString *headerViewIdentifier;
     CGFloat rowHeight = UITableViewAutomaticDimension;
     NSDictionary *section = [pList objectAtIndex:indexPath.section];
     NSArray *rows = [section valueForKey:@"rows"];
+    NSString *detailText;
 
     // We first need to check if this is a simple list to avoid index out of range error; then
     // we check if we have a multi-line text view. If so, we take a height large enough for a bunch
@@ -279,17 +289,22 @@ static NSString *headerViewIdentifier;
     if ([[[rows firstObject] valueForKey:@"type"] integerValue] != SPTypeSimpleList) {
         NSDictionary *row = [rows objectAtIndex:indexPath.row];
         SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:@"type"] integerValue];
-        if (type == SPTypeMultilineText) {
+        if (type == SPTypeMultilineText || type == SPTypeHTML) {
             
-            NSString *detailText = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
+            id tmp = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
+            if ([NSStringFromClass([tmp class]) isEqualToString:@"NSNull"])
+                detailText = @"";
+            detailText = [NSString stringWithFormat:@"%@", tmp];
+            BOOL editMode = [[row valueForKey:@"edit"] boolValue];
+            
             CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
             UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
             CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
                                                 options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
                                              attributes:@{NSFontAttributeName: font}
                                                 context:nil];
-            rowHeight = MAX(120.0, frame.size.height);
-            NSLog(@"*** Row size(%i) ", (int)rowHeight);
+            // We give quite a bit of empty space initially and also add 3 to 4 empty lines if in edit mode.
+            rowHeight = ([detailText length] == 0) ? MAX(250.0, frame.size.height) : MAX(40.0, frame.size.height) + editMode * 50.0f;
         }
     }
 
@@ -330,7 +345,6 @@ static NSString *headerViewIdentifier;
                                               attributes:@{NSFontAttributeName: font}
                                                  context:nil];
         headerHeight = 50.0 + frame.size.height;
-        NSLog(@"*** Header size(%i) ", (int)frame.size.height);
     }
     return headerHeight;
 }
@@ -388,7 +402,6 @@ static NSString *headerViewIdentifier;
                                          attributes:@{NSFontAttributeName: font}
                                             context:nil];
         footerHeight = MAX(28.0, frame.size.height);
-        NSLog(@"*** Footer size(%i) ", (int)footerHeight);
     }
     return footerHeight;
 }
@@ -431,13 +444,24 @@ static NSString *headerViewIdentifier;
     UITableViewCellSelectionStyle selectionStyle = UITableViewCellSelectionStyleNone;
     UIKeyboardType keyboardType = UIKeyboardTypeDefault;
     UISwitch *accessoryView;
+    CGFloat maxRowHeight = 400.0f;
     NSDictionary *choicesDictionary;
+    NSString *formatted;
     
-    // Configure the cell...
+    // Configure the cell and determine type required.
     [cell setViewController:self];
     [cell setTag:indexPath.row];
     [cell setRowDictionary:rowDictionary];
-    
+    type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
+
+    // Clean up the cell from: remove textView and button if we had some from previous runs.
+    if (type != SPTypeMultilineText && type != SPTypeHTML)
+        if (cell.textView)
+            [cell.textView removeFromSuperview];
+    if (type != SPTypeAction)
+        if (cell.button)
+            [cell.button removeFromSuperview];
+
     // Get flags for the editing and keyboard properties of the detail text label.
     BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
     NSString *flags = [rowDictionary valueForKey:@"flags"];
@@ -447,7 +471,6 @@ static NSString *headerViewIdentifier;
                                       [NSCharacterSet characterSetWithCharactersInString:@"a"]].location;
     BOOL secure = NSNotFound != [flags rangeOfCharacterFromSet:
                                  [NSCharacterSet characterSetWithCharactersInString:@"s"]].location;
-    type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
     [cell.textLabel setText:[rowDictionary valueForKey:@"name"]];
     
     // Extract the value for the key from the property list dictionary - if there is one.
@@ -469,7 +492,7 @@ static NSString *headerViewIdentifier;
                 if (capitalized)
                     [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeWords];
                 else
-                    [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeNone];
+                    [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeSentences];
                 if (autocorrect)
                     [cell.textField setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
@@ -480,7 +503,10 @@ static NSString *headerViewIdentifier;
                 [cell.textField setSecureTextEntry:YES];
             else
                 [cell.textField setSecureTextEntry:NO];
-            [cell.detailTextLabel setText:(NSString *)value];
+            if ([(NSString *)value length] > 0)
+                [cell.detailTextLabel setText:(NSString *)value];
+            else
+                [cell.detailTextLabel setText:@" "];
             [cell.textField setEnabled:editable];
             break;
             
@@ -501,7 +527,21 @@ static NSString *headerViewIdentifier;
             break;
             
         case SPTypeMultilineText:
-            cell.textView = [[UITextView alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, 400.0f}];
+        case SPTypeHTML:
+
+            // Allocate a textview for the multi-line text field only if there isn't one
+            // there from before. Make sure we always hav a string to display.
+
+            if (value)
+                formatted = [NSString stringWithFormat:@"%@", value];
+            else
+                formatted = @"";
+            maxRowHeight = ([formatted length] > 0) ? 20.0f : maxRowHeight;
+            
+            if (cell.textView)
+                [cell.textView removeFromSuperview];
+            else
+                cell.textView = [[UITextView alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, maxRowHeight}];
             [cell.textView setDelegate:cell];
             [cell.textView setBackgroundColor:[UIColor clearColor]];
             
@@ -509,8 +549,8 @@ static NSString *headerViewIdentifier;
             [cell.textView setUserInteractionEnabled:YES];
             [cell.textView setReturnKeyType:UIReturnKeyDefault];
             
-            [cell.detailTextLabel setText:(NSString *)value];
-            [cell.textField setEnabled:editable];
+            [cell.detailTextLabel setText:formatted];
+            [cell.textView setEditable:editable];
 
             if (editable) {
                 keyboardType = [[rowDictionary valueForKey:@"kbType"] integerValue];
@@ -518,7 +558,7 @@ static NSString *headerViewIdentifier;
                 if (capitalized)
                     [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeWords];
                 else
-                    [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeNone];
+                    [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeSentences];
                 if (autocorrect)
                     [cell.textView setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
@@ -564,8 +604,13 @@ static NSString *headerViewIdentifier;
             [cell.detailTextLabel setText:[choicesDictionary objectForKey:value]];
             [cell.textField setEnabled:NO];
             
-            selectionStyle = UITableViewCellSelectionStyleDefault;
-            accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            if (editable) {
+                selectionStyle = UITableViewCellSelectionStyleDefault;
+                accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else {
+                selectionStyle = UITableViewCellSelectionStyleNone;
+                accessoryType = UITableViewCellAccessoryNone;
+            }
             break;
             
         case SPTypePList:
@@ -585,16 +630,19 @@ static NSString *headerViewIdentifier;
             // cell using the contentView. The action is triggered by the button, not by the
             // selected tableview cell.
             
-            selectionStyle = UITableViewCellSelectionStyleDefault;
+            selectionStyle = UITableViewCellSelectionStyleNone;
             
-            cell.button = [UIButton buttonWithType:UIButtonTypeCustom];
+            if (cell.button) {
+                [cell.button removeFromSuperview];
+            } else
+                cell.button = [UIButton buttonWithType:UIButtonTypeCustom];
             [cell.button setFrame:(CGRect){0.0, 0.0, cell.frame.size.width, self.tableView.rowHeight}];
             for (NSDictionary *state in choices) {
                 UIControlState controlState = [[state valueForKey:@"value"] integerValue];
                 [cell.button setTitle:[state valueForKey:@"name"] forState:controlState];
                 switch (controlState) {
                     case UIControlStateDisabled:
-                        [cell.button setTitleColor:[UIColor lightTextColor] forState:controlState];
+                        [cell.button setTitleColor:[UIColor lightGrayColor] forState:controlState];
                         [cell.button setEnabled:NO];
                         break;
                     case UIControlStateSelected:
@@ -622,8 +670,10 @@ static NSString *headerViewIdentifier;
                     break;
                 case UIControlStateDisabled:
                     [cell.button setEnabled:NO];
+                    [cell.button setSelected:NO];
                     break;
                 case UIControlStateSelected:
+                    [cell.button setEnabled:YES];
                     [cell.button setSelected:YES];
                     break;
                 case UIControlStateHighlighted:
@@ -637,6 +687,7 @@ static NSString *headerViewIdentifier;
             [cell.button setBackgroundColor:[UIColor whiteColor]];
             [cell.button addTarget:cell action:@selector(buttonSelected:) forControlEvents:UIControlEventTouchUpInside];
             [cell.contentView addSubview:cell.button];
+            [cell.textLabel setHidden:YES];
             break;
             
         default:
@@ -661,6 +712,7 @@ static NSString *headerViewIdentifier;
     
     NSDictionary *rowDictionary = [self rowForIndexPath:indexPath];
     SettingsPropertyType type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
+    BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
     
     NSIndexPath *oldIndex = [self.tableView indexPathForSelectedRow];
     
@@ -671,17 +723,23 @@ static NSString *headerViewIdentifier;
         
         switch (type) {
             case SPTypeSimpleList:
-                [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
-                [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
-                [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
-                [self didChange:[[(NSArray *)value objectAtIndex:indexPath.row] valueForKey:@"value"] forKey:identifier];
+                // Only allow selection of row when simple list is editable.
+                if (editable) {
+                    [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
+                    [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
+                    [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
+                    [self didChange:[[(NSArray *)value objectAtIndex:indexPath.row] valueForKey:@"value"] forKey:identifier];
+                }
                 break;
                 
             case SPTypeChoice:
-                [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
-                [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
-                [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
-                [self didChange:value forKey:identifier];
+                // Only allow selection of row when multi-value list is editable.
+                if (editable) {
+                    [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
+                    [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
+                    [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
+                    [self didChange:value forKey:identifier];
+                }
                 break;
                 
             default:
@@ -705,6 +763,7 @@ static NSString *headerViewIdentifier;
     NSInteger type = [[rowDictionary valueForKey:@"type"] integerValue];
     NSString *identifier = [rowDictionary valueForKey:@"identifier"];
     NSObject *value = [rowDictionary valueForKey:@"value"];
+    BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
     
     switch (type) {
             
@@ -726,16 +785,21 @@ static NSString *headerViewIdentifier;
             // on the next level down. The envelope section will not be displayed and is titleless instead. Note
             // that the multi-level type becomes a <SPTypeChoice> on the row level in the pushed viewcontroller.
             
-            rows = [[NSMutableArray alloc] initWithCapacity:[(NSArray *)value count]];
-            for (NSDictionary *row in (NSArray *)value)
-                [rows addObject: P_ROW([row valueForKey:@"name"], SPTypeChoice, [row valueForKey:@"value"], NO, UIKeyboardTypeDefault, @"", identifier)];
+            if (editable) {
+                rows = [[NSMutableArray alloc] initWithCapacity:[(NSArray *)value count]];
+                for (NSDictionary *row in (NSArray *)value)
+                    [rows addObject: P_ROW([row valueForKey:@"name"], SPTypeChoice, [row valueForKey:@"value"], editable, UIKeyboardTypeDefault, @"", identifier)];
+                
+                // This will become the new property list on the next lower level.
+                value = @[
+                          @{@"title": @"Envelope", @"type": @(SPTypeMultiValue), @"rows": rows }
+                          ];
+            } else
+                break;
             
-            // This will become the new property list on the next lower level.
-            value = @[
-                      @{@"title": @"Envelope", @"type": @(SPTypeMultiValue), @"rows": rows }
-                      ];
-            
-            // Break omitted intentially here to share code with the property list type.
+            // Break omitted intentially here to share code with the property list type unless the multi-value
+            // list is not editable. In that case we don't need to push the SettingsViewController as we don't want
+            // to offer a choice.
             
         case SPTypePList:
             
@@ -755,7 +819,7 @@ static NSString *headerViewIdentifier;
             
         case SPTypeAction:
             
-            // Property is of type action, i.e. a callback to be invoked with the ull set of current property values
+            // Property is of type action, i.e. a callback to be invoked with the full set of current property values
             // as parameters. The method must be provided as a selector cast into a string and must be implemented
             // by the SettingsViewController Delegate.
             
@@ -772,7 +836,7 @@ static NSString *headerViewIdentifier;
 
 @implementation SettingsViewCell
 
-@synthesize textField, textView, rowDictionary, viewController, button;
+@synthesize textField, textView, webView, rowDictionary, viewController, button;
 
 - (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
     
@@ -799,12 +863,17 @@ static NSString *headerViewIdentifier;
     
     // Let the labels size themselves to accommodate their text
     [super layoutSubviews];
-    NSLog(@"Cell(%i) name(%@)", self.tag, [rowDictionary valueForKey:@"identifier"]);
+    // NSLog(@"Cell(%i) name(%@)", self.tag, [rowDictionary valueForKey:@"identifier"]);
     
     [self.textLabel sizeToFit];
     [self.detailTextLabel sizeToFit];
     CGRect textFrame, detailFrame = self.detailTextLabel.frame;
     CGFloat offset = -20.0f;
+    
+    NSString *htmlString;
+    NSAttributedString *attributedString;
+    NSData *data;
+    NSError *error;
 
     // We need to reset some cell type specific view in order to avoid confusion.
     [self.textField removeFromSuperview];
@@ -849,6 +918,36 @@ static NSString *headerViewIdentifier;
                 self.contentView.frame.size.width - detailFrame.origin.x, self.frame.size.height};
             [self.textView setText:self.detailTextLabel.text];
             [self.textView setFont:[UIFont systemFontOfSize:self.detailTextLabel.font.pointSize]];
+            [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
+            [self.textView setFrame:textFrame];
+            [self.contentView addSubview:textView];
+            [self.textLabel setHidden:YES];
+            [self.detailTextLabel setHidden:YES];
+            
+            break;
+            
+        case SPTypeHTML:
+            
+            // A HTML webView extends over the enire row and hides the text label. We take
+            // the textLabel x-origin for the textView's origin. The height is given by the cell's
+            // height which has been properly calculated in the tableView:heightForRowAtIndexPath:
+            // delegate method.
+            
+            detailFrame = self.textLabel.frame;
+            textFrame = (CGRect){detailFrame.origin.x, 0.0f,
+                self.contentView.frame.size.width - detailFrame.origin.x, self.frame.size.height};
+
+            // Turn the HTML string into an attributedString for the textView.
+            htmlString = [NSString stringWithFormat:@"<pre>%@</pre>", self.detailTextLabel.text];
+            data = [htmlString dataUsingEncoding:NSUTF8StringEncoding];
+            attributedString = [[NSAttributedString alloc] initWithData:data
+                                                            options:@{ NSDocumentTypeDocumentAttribute: NSHTMLTextDocumentType,
+                                                                       NSCharacterEncodingDocumentAttribute: @(NSUTF8StringEncoding)
+                                                                       }
+                                                     documentAttributes:nil
+                                                                  error:&error];
+            textView.attributedText = attributedString;
+            [textView setFont:[UIFont fontWithName:@"Courier New" size:14.0]];
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textView setFrame:textFrame];
             [self.contentView addSubview:textView];
@@ -942,6 +1041,7 @@ static NSString *headerViewIdentifier;
             }
         }
     }
+    viewController.valuesIn = [viewController mergeValues:viewController.valuesOut];
 }
 
 - (void)textFieldDidEndEditing:(UITextField *)aTextField {
@@ -966,6 +1066,11 @@ static NSString *headerViewIdentifier;
     [aTextView resignFirstResponder];
     [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
     return YES;
+}
+
+- (void)textViewDidEndEditing:(UITextView *)aTextView {
+    
+    [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
 }
 
 @end
