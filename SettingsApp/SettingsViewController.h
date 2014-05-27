@@ -22,6 +22,7 @@ typedef enum {
     SPTypeMultilineText,
     SPTypeHTML,
     SPTypeSimpleList,
+    SPTypeCustom,
     SPTypeChoice,            // This is used for MultiValue type on the lower level
     SPTypeMultiLevel = 10,
     SPTypeMultiValue,
@@ -57,6 +58,8 @@ typedef enum {
 #define P_ROW(NAME, TYPE, VALUE, EDIT, KEYBOARDTYPE, FLAGS, IDENTIFIER) @{@"name": NAME, @"type": @(TYPE), @"value": VALUE, @"edit": @(EDIT), @"kbType": @(KEYBOARDTYPE), @"flags": FLAGS, @"identifier": IDENTIFIER }
 #define P_MULTIVALUE(NAME, VALUE) @{@"name": NAME, @"value": VALUE }
 
+@class SettingsViewCell;
+@class SettingsTextView;
 
 @protocol SettingsViewControllerDelegate <NSObject>
 
@@ -66,19 +69,23 @@ typedef enum {
 - (void)settingsDidChange:(id)value forKey:(NSString *)name;
 - (void)willDismissModalView:(id)sender;
 - (void)didDismissModalView:(id)sender;
+- (CGFloat)customSetting:(id)settingsViewController heightForRowAtIndexPath:(NSIndexPath *)indexPath;
+- (SettingsViewCell *)customSetting:(SettingsViewCell *)cell cellForRowAtIndexPath:(NSIndexPath *)indexPath;
 
 @end
 
 @interface SettingsViewController : UITableViewController
 
-@property (nonatomic, assign) id<SettingsViewControllerDelegate> delegate;
+@property (nonatomic, weak) id<SettingsViewControllerDelegate> delegate;
 @property (nonatomic, strong) NSDictionary *valuesIn;
 @property (nonatomic, strong) NSMutableDictionary *valuesOut;
+@property (nonatomic, strong) UIMenuController *menuController;
 
 @property (nonatomic, assign) NSInteger nestingLevel;
 
 - (id)initWithProperties:(NSArray *)properties;
 - (void)didChange:(id)value forKey:(NSString *)name;
+- (void)dismissViewController;
 
 @end
 
@@ -86,12 +93,16 @@ typedef enum {
 
 @property (nonatomic, strong) NSDictionary *rowDictionary;
 @property (readonly, strong) UITextField *textField;
-@property (nonatomic, strong) UITextView *textView;
+@property (nonatomic, strong) SettingsTextView *textView;
 @property (nonatomic, strong) UIWebView *webView;
 @property (nonatomic, strong) UIButton *button;
 @property (nonatomic, weak) SettingsViewController *viewController;
 
 - (void)switchOnOff:(id)sender;
 - (void)buttonSelected:(id)sender;
+
+@end
+
+@interface SettingsTextView : UITextView
 
 @end

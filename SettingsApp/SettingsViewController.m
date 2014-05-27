@@ -36,6 +36,9 @@
 //                      value list except that it presents all choices on the current
 //                      level.
 //
+//  - Custom            ...
+//                      ...
+//
 //  Multi-level types:  Invoke the SettingsViewController recursively for as many levels
 //                      as required.
 //
@@ -79,24 +82,27 @@
 //                      used by the UIViewController class to release a controller.
 //
 
-
 #import "SettingsViewController.h"
 
-static NSString *cellIdentifier;
+static NSString *cellIdentifierDefault;
+static NSString *cellIdentifierCustom;
 static NSString *headerViewIdentifier;
 
 @interface SettingsViewController () {
     
     SettingsViewController *settingsViewController;
     NSArray *pList;
+    UIMenuController *menuController;
+    
 }
+
 - (NSDictionary *)rowForIndexPath:(NSIndexPath *)indexPath;
 @end
 
 
 @implementation SettingsViewController
 
-@synthesize delegate, nestingLevel, valuesIn, valuesOut;
+@synthesize delegate, nestingLevel, valuesIn, valuesOut, menuController;
 
 - (id)initWithProperties:(NSArray *)properties {
     
@@ -116,9 +122,11 @@ static NSString *headerViewIdentifier;
         // TableView configuration. We register the subclass of UITableViewCell to
         // get a protoype. The cell is initialized in initWithStyle:reuseIdentifier:.
         
-        cellIdentifier = @"SettingsViewCell";
+        cellIdentifierDefault = @"SettingsViewCellDefault";
+        cellIdentifierCustom = @"SettingsViewCellCustom";
         [self.tableView registerClass:[SettingsViewCell class]
-               forCellReuseIdentifier:cellIdentifier];
+               forCellReuseIdentifier:cellIdentifierDefault];
+        // [self.tableView registerClass:[SettingsViewCell class] forCellReuseIdentifier:cellIdentifierCustom];
         
         headerViewIdentifier = @"SectionHeaderView";
         [self.tableView registerClass:[UITableViewHeaderFooterView class]
@@ -154,6 +162,7 @@ static NSString *headerViewIdentifier;
             self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
                                                       initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                                                       target:self action:@selector(dismissView:)];
+            [self.navigationItem setHidesBackButton:YES];
             
             // Now get the settings initial values; they will be carried in valuesIn while
             // changed settins are in valuesOut.
@@ -178,6 +187,12 @@ static NSString *headerViewIdentifier;
     [self.tableView reloadData];
 }
 
+- (void)dismissViewController {
+
+    // A simple interface method to dismiss the controller from outside.
+    [self dismissView:nil];
+}
+
 #pragma mark - SettingsViewController internal methods that invoke delegate protocol methods
 
 - (void)didChange:(id)value forKey:(NSString *)name {
@@ -188,8 +203,6 @@ static NSString *headerViewIdentifier;
     // Only change the value if it is different from the previous generation.
     
     if (![value isEqual:[valuesIn valueForKey:name]]) {
-        // NSLog(@"Changing value for key(%@), replacing new(%@) for old(%@)", name, value,
-        //      [valuesIn valueForKey:name]);
         NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:name];
         [valuesOut addEntriesFromDictionary:dictionary];
         valuesIn = [self mergeValues:valuesOut];
@@ -281,33 +294,50 @@ static NSString *headerViewIdentifier;
     NSDictionary *section = [pList objectAtIndex:indexPath.section];
     NSArray *rows = [section valueForKey:@"rows"];
     NSString *detailText;
+    UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
 
     // We first need to check if this is a simple list to avoid index out of range error; then
     // we check if we have a multi-line text view. If so, we take a height large enough for a bunch
     // of lines.
     
-    if ([[[rows firstObject] valueForKey:@"type"] integerValue] != SPTypeSimpleList) {
-        NSDictionary *row = [rows objectAtIndex:indexPath.row];
-        SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:@"type"] integerValue];
-        if (type == SPTypeMultilineText || type == SPTypeHTML) {
-            
-            id tmp = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
-            if ([NSStringFromClass([tmp class]) isEqualToString:@"NSNull"])
-                detailText = @"";
-            detailText = [NSString stringWithFormat:@"%@", tmp];
-            BOOL editMode = [[row valueForKey:@"edit"] boolValue];
-            
-            CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
-            UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-            CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
-                                                options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
-                                             attributes:@{NSFontAttributeName: font}
-                                                context:nil];
-            // We give quite a bit of empty space initially and also add 3 to 4 empty lines if in edit mode.
-            rowHeight = ([detailText length] == 0) ? MAX(250.0, frame.size.height) : MAX(40.0, frame.size.height) + editMode * 50.0f;
-        }
-    }
+    NSDictionary *row = [rows objectAtIndex:indexPath.row];
+    SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:@"type"] integerValue];
 
+    switch (type) {
+        case SPTypeSimpleList:
+            // No action at all, use default row height.
+            break;
+            
+        case SPTypeCustom:
+            // Get the row height from the delegate protocol method.
+            if ([delegate respondsToSelector:@selector(customSetting:heightForRowAtIndexPath:)])
+                rowHeight = [delegate customSetting:self heightForRowAtIndexPath:indexPath];
+            break;
+            
+        case SPTypeHTML:
+            font = [UIFont fontWithName:@"Courier New" size:15.0];
+            // A break; statement is intentionally omitted here to share the code with the default case.
+
+        default:
+
+            // Calculate the row height for all other cases.
+            if (type == SPTypeMultilineText || type == SPTypeHTML) {
+                id tmp = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
+                if ([NSStringFromClass([tmp class]) isEqualToString:@"NSNull"])
+                    detailText = @"";
+                detailText = [NSString stringWithFormat:@"%@", tmp];
+                BOOL editMode = [[row valueForKey:@"edit"] boolValue];
+                
+                CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
+                CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
+                                                        options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
+                                                     attributes:@{NSFontAttributeName: font}
+                                                        context:nil];
+                // We give quite a bit of empty space initially and also add 3 to 4 empty lines if in edit mode.
+                rowHeight = ([detailText length] == 0) ? MAX(250.0, frame.size.height) : MAX(40.0, frame.size.height) + editMode * 32.0f;
+                break;
+            }
+    }
     return rowHeight;
 }
 
@@ -432,14 +462,34 @@ static NSString *headerViewIdentifier;
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     
-    // We have registered the class so this always gives us a valid cell.
-    SettingsViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier
-                                                             forIndexPath:indexPath];
+    // Get the row definition before anything else. take the row using indexPath into rows
+    // when not SPTypeSimpleList.
     
-    // Get the row definition; take the row using indexPath into rows when not SPTypeSimpleList.
     NSDictionary *rowDictionary = [self rowForIndexPath:indexPath];
+    SettingsPropertyType type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
     
-    SettingsPropertyType type;
+    // We have registered the class so this always gives us a valid cell. Choose either default or
+    // then custom type depending on Settings type.
+    
+    SettingsViewCell *cell;
+    if (type == SPTypeCustom) {
+        
+        // Handle custom cell initialization here.
+        cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifierCustom];
+        if (!cell)
+            cell = [[SettingsViewCell alloc] initWithStyle:[[rowDictionary valueForKey:@"value"] integerValue]
+                                           reuseIdentifier:cellIdentifierCustom];
+        if ([delegate respondsToSelector:@selector(customSetting:cellForRowAtIndexPath:)])
+            cell = [delegate customSetting:cell cellForRowAtIndexPath:indexPath];
+    } else
+        cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifierDefault
+                                               forIndexPath:indexPath];
+
+    // Configure the cell and determine type required.
+    [cell setViewController:self];
+    [cell setTag:indexPath.row];
+    [cell setRowDictionary:rowDictionary];
+
     UITableViewCellAccessoryType accessoryType = UITableViewCellAccessoryNone;
     UITableViewCellSelectionStyle selectionStyle = UITableViewCellSelectionStyleNone;
     UIKeyboardType keyboardType = UIKeyboardTypeDefault;
@@ -448,12 +498,6 @@ static NSString *headerViewIdentifier;
     NSDictionary *choicesDictionary;
     NSString *formatted;
     
-    // Configure the cell and determine type required.
-    [cell setViewController:self];
-    [cell setTag:indexPath.row];
-    [cell setRowDictionary:rowDictionary];
-    type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
-
     // Clean up the cell from: remove textView and button if we had some from previous runs.
     if (type != SPTypeMultilineText && type != SPTypeHTML)
         if (cell.textView)
@@ -492,7 +536,7 @@ static NSString *headerViewIdentifier;
                 if (capitalized)
                     [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeWords];
                 else
-                    [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeSentences];
+                    [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeNone];
                 if (autocorrect)
                     [cell.textField setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
@@ -541,7 +585,7 @@ static NSString *headerViewIdentifier;
             if (cell.textView)
                 [cell.textView removeFromSuperview];
             else
-                cell.textView = [[UITextView alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, maxRowHeight}];
+                cell.textView = [[SettingsTextView alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, maxRowHeight}];
             [cell.textView setDelegate:cell];
             [cell.textView setBackgroundColor:[UIColor clearColor]];
             
@@ -840,20 +884,28 @@ static NSString *headerViewIdentifier;
 
 - (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
     
-    self = [super initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:reuseIdentifier];
+    // We define UITableViewCellStyleValue1 as the default style. It may be overwritten, though,
+    // in the case of a custom settings cell.
+    
+    if (style == UITableViewCellStyleDefault)
+        style = UITableViewCellStyleValue1;
+
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
         // Initialize cell
-        
-        // Add a textField for the parameter display and editing.
-        textField = [[UITextField alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, 20.0f}];
-        [textField setDelegate:self];
-        [textField setBackgroundColor:[UIColor clearColor]];
-        
-        [textField setTextAlignment:NSTextAlignmentLeft];
-        [textField setUserInteractionEnabled:YES];
-        [textField setReturnKeyType:UIReturnKeyDone];
+        if ([reuseIdentifier isEqualToString:cellIdentifierDefault]) {
+
+            // Add a textField for the parameter display and editing.
+            textField = [[UITextField alloc] initWithFrame:(CGRect){0.0f, 0.0f, 250.0f, 20.0f}];
+            [textField setDelegate:self];
+            [textField setBackgroundColor:[UIColor clearColor]];
+            
+            [textField setTextAlignment:NSTextAlignmentLeft];
+            [textField setUserInteractionEnabled:YES];
+            [textField setReturnKeyType:UIReturnKeyDone];
+        }
     }
-    
+
     textView = nil;
     
     return self;
@@ -973,6 +1025,13 @@ static NSString *headerViewIdentifier;
             [self.detailTextLabel setHidden:YES];
             
             break;
+            
+        case SPTypeCustom:
+            // We don't perform anything in layoutSubviews for the custom cell. All the formatting
+            // has to be done on the delegate protocol method for custom cells.
+            
+            break;
+            
         default:
             
             [self.detailTextLabel setHidden:NO];
@@ -1071,6 +1130,15 @@ static NSString *headerViewIdentifier;
 - (void)textViewDidEndEditing:(UITextView *)aTextView {
     
     [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
+}
+
+@end
+
+@implementation SettingsTextView
+
+- (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
+    
+    return NO;
 }
 
 @end

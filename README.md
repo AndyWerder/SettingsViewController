@@ -31,6 +31,16 @@ Output Values
 -------------
 Changed values are provided in a NSMutableDictionary with the same structure as the input values, i.e. name/value tuples. Only changed values are returned in the output values dictionary. If no changes have been made, the resulting dictionary will be empty.
 
+Interface
+---------
+
+`- (id)initWithProperties:(NSArray *)properties;`:
+Constructor for SettingsViewController which takes a dictionary of settings parameters (see above) as only input argument. 
+`- (void)didChange:(id)value forKey:(NSString *)name;`:
+Interface method that can be used to pass a settings value back to the SettingsViewController. This is usually required when a callback is used in conjunction with a setting (e.g. a login validation method and the validated login parameters must be included in the settings). 
+`- (void)dismissViewController;`: 
+Interface method that can be used to dismiss the SettingsViewController programmatically from the outside without the need to press the Done button.
+
 Delegate Protocol
 -----------------
 The SettingsViewController uses provides protocol for mandatory and optional methods to be implemented by the calling class.
