@@ -11,7 +11,7 @@ Single level types
 - **Integer32:** A simple short or long integer for presentation and editing.
 - **Decimal:** A number for presentation and editing.
 - **Boolean:** The user interface for Boolean settings is based on the switch (UISwitch) control.
-- **Date: ** A full date/time stamp, presentation only (editing not supported).
+- **Date:** A full date/time stamp, presentation only (editing not supported).
 - **Multi-line text:** Provides a textView that spans across the entire cell for free text entry and editing.
 - **HTML:** Provides a Web view that spans across the entire cell for presenting HTML content.
 - **Simple list:** A list of mutually exclusive choices. The value of the selected row becomes the result. The simple list is similar to the multi-value list except that it presents all choices on the current level. Note that a simple list must be the only property in the respective section and cannot be combined with other fields in its section.
@@ -28,7 +28,7 @@ Multi-level types invoke the SettingsViewController recursively for as many leve
 
 Input Values
 ------------
-The initial settings to be used in the property list must be provided in a (flat) NSDictionary structure of name/value tuples. 
+The initial settings to be used in the property list must be provided in a (flat) NSDictionary structure of name/value tuples. Additionally, default values can be provided that are used in the Picker List type.
 
 Output Values
 -------------
@@ -37,45 +37,45 @@ Changed values are provided in a NSMutableDictionary with the same structure as 
 Interface
 ---------
 
-`- (id)initWithProperties:(NSArray *)properties;`:
+`- (id)initWithProperties:(NSArray *)properties:`
 Constructor for SettingsViewController which takes a dictionary of settings parameters (see above) as only input argument. 
 
-`- (void)didChange:(id)value forKey:(NSString *)name;`:
+`- (void)didChange:(id)value forKey:(NSString *)name:`
 Interface method that can be used to pass a settings value back to the SettingsViewController. This is usually required when a callback is used in conjunction with a setting (e.g. a login validation method and the validated login parameters must be included in the settings). 
 
-`- (void)dismissViewController;`: 
+`- (void)dismissViewController:`
 Interface method that can be used to dismiss the SettingsViewController programmatically from the outside without the need to press the Done button.
 
 Delegate Protocol
 -----------------
 The SettingsViewController uses provides protocol for mandatory and optional methods to be implemented by the calling class.
 
-`-settingsInput:sender`:
+`-settingsInput:sender:`
 Required callback used to provide a dictionary of name/value tuples to be used as initial values in the propery lists. The names of the values presented must match the identifier provided for the particular property.
 
-`-propertiesForRow:rowDictionary`:
+`-propertiesForRow:rowDictionary:`
 Optional callback that implements the dynamic composition of recursive Property lists. The method is called every time a property list is being built dynamically. To take correct action the rowDictionary parameter must be checked for instance for the IDENTIFIER.
 
-`-settingsDefault:sender:`:
+`-settingsDefault:sender:`
 Optional callback similar to the settingsInput method which is used to provide default values for properties. The method must return a dictionary of default name/value pairs.  
 
-`-settingsDidChange:forKey`:
+`-settingsDidChange:forKey:`
 Callback that is invoked in the protocol delegate whenever a value from the property list has been changed by the user.
 
-`-willDismissModalView:sender:`:
+`-willDismissModalView:sender:`
 Callback invoked BEFORE the didDismissModalView:sender: method is invoked. The callback can be used to determine if the SettingsViewControlller has to be dismissed for instance when changes to the properties must be committed.
 
-`-didDismissModalView`:
+`-didDismissModalView:`
 Callback that must implement one of the dismissController methods used by the UIViewController class to release a controller.
 
 Delegate Protocol for Custom type properties
 --------------------------------------------
 
 
-`-customSetting:heightForRowAtIndexPath:`:
+`-customSetting:heightForRowAtIndexPath:`
 Optional callback that can be used to specifiy the height of a Custom cell. The indexPath parameter must be used to distinguish between custom cells if multiple properties are formatted with custom cells.
 
-`-customSetting:cellForRowAtIndexPath:`:
+`-customSetting:cellForRowAtIndexPath:`
 Optional callback for format a SettingsViewCell. Again, the indexPath parameter must be used to distinguish between different custom cells if multiple properties are formatted with custom cells. The method is similar to the tableView:cellForRowAtIndexPath: method and it must return a correctly built SettimngsViewCell object. The style of the cell must be specified by the VALUE parameter of the row dictionary.
 
 Extension for Class SettingsViewCell 
