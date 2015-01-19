@@ -20,6 +20,7 @@
 
 	window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+    NSSetUncaughtExceptionHandler(&uncaughtExceptionHandler);
 
     MasterViewController *masterViewController = [[MasterViewController alloc] initWithStyle:UITableViewStyleGrouped];
     UINavigationController *mnc = [[UINavigationController alloc] initWithRootViewController:masterViewController];
@@ -27,6 +28,14 @@
     [window makeKeyAndVisible];
     
     return YES;
+}
+
+void uncaughtExceptionHandler(NSException *exception) {
+    
+    NSLog(@"CRASH: %@", exception);
+    NSLog(@"Stack Trace: %@", [exception callStackSymbols]);
+    
+    // Internal error reporting
 }
 
 @end

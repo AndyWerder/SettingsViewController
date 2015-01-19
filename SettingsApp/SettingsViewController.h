@@ -3,7 +3,7 @@
 //  ChefsHand
 //
 //  Created by Andreas Werder on 1/12/14.
-//  Copyright (c) 2014 Material Apps. All rights reserved.
+//  Copyright (c) 2014, 2015 Material Apps. All rights reserved.
 //
 //  Permission is given to use this source code file, free of charge, in any
 //  project, commercial or otherwise, entirely at your risk, with the condition
@@ -18,16 +18,20 @@ typedef enum {
     SPTypeDefault = 0,
     SPTypeString,
     SPTypeInteger32,
+    SPTypeDecimal,
     SPTypeBoolean,
+    SPTypeDate,
     SPTypeMultilineText,
     SPTypeHTML,
     SPTypeSimpleList,
     SPTypeCustom,
     SPTypeChoice,            // This is used for MultiValue type on the lower level
-    SPTypeMultiLevel = 10,
+    SPTypeMultiLevel = 20,
     SPTypeMultiValue,
+    SPTypePickerList,
     SPTypePList,
-    SPTypeAction
+    SPTypeAction,
+    SPTypePickerView         // This is used for PickerList type on the lower level
 } SettingsPropertyType;
 
 //  Create the property list as an array of dictionaries. Each element in the array must be a
@@ -54,19 +58,21 @@ typedef enum {
 //
 // Macros for setting up the property lists
 
-#define P_SECTION(TITLE, HEADER, ROWS, FOOTER) @{@"title": TITLE, @"type": @(SPTypePList), @"header": HEADER, @"rows": ROWS, @"footer": FOOTER }
+#define P_SECTION(TITLE, KEY, HEADER, ROWS, FOOTER) @{@"title": TITLE, @"type": @(SPTypePList), @"header": HEADER, @"rows": ROWS, @"footer": FOOTER, @"key": KEY }
 #define P_ROW(NAME, TYPE, VALUE, EDIT, KEYBOARDTYPE, FLAGS, IDENTIFIER) @{@"name": NAME, @"type": @(TYPE), @"value": VALUE, @"edit": @(EDIT), @"kbType": @(KEYBOARDTYPE), @"flags": FLAGS, @"identifier": IDENTIFIER }
-#define P_MULTIVALUE(NAME, VALUE) @{@"name": NAME, @"value": VALUE }
+#define P_MULTIVALUE(NAME, VALUE) @{@"name": (NAME), @"value": (VALUE) }
 
 @class SettingsViewCell;
-@class SettingsTextView;
+@class SettingsTextView, SettingsTextField;
 
 @protocol SettingsViewControllerDelegate <NSObject>
 
 - (NSDictionary *)settingsInput:(id)sender;
 
 @optional
-- (void)settingsDidChange:(id)value forKey:(NSString *)name;
+- (NSArray *)propertiesForRow:(NSDictionary *)rowDictionary;
+- (NSDictionary *)settingsDefault:(id)sender;
+- (void)settingsDidChange:(id)value forRow:(NSDictionary *)row;
 - (void)willDismissModalView:(id)sender;
 - (void)didDismissModalView:(id)sender;
 - (CGFloat)customSetting:(id)settingsViewController heightForRowAtIndexPath:(NSIndexPath *)indexPath;
@@ -76,15 +82,18 @@ typedef enum {
 
 @interface SettingsViewController : UITableViewController
 
-@property (nonatomic, weak) id<SettingsViewControllerDelegate> delegate;
+@property (nonatomic, strong) id<SettingsViewControllerDelegate> delegate;
 @property (nonatomic, strong) NSDictionary *valuesIn;
 @property (nonatomic, strong) NSMutableDictionary *valuesOut;
+@property (nonatomic, strong) NSDictionary *valuesDefault;
 @property (nonatomic, strong) UIMenuController *menuController;
+@property (nonatomic, strong) NSIndexPath *selectedIndexPath;
 
 @property (nonatomic, assign) NSInteger nestingLevel;
 
 - (id)initWithProperties:(NSArray *)properties;
 - (void)didChange:(id)value forKey:(NSString *)name;
+- (void)didChange:(id)value forRow:(NSDictionary *)row;
 - (void)dismissViewController;
 
 @end
@@ -92,16 +101,27 @@ typedef enum {
 @interface SettingsViewCell : UITableViewCell <UITextFieldDelegate, UITextViewDelegate>
 
 @property (nonatomic, strong) NSDictionary *rowDictionary;
-@property (readonly, strong) UITextField *textField;
+@property (nonatomic, strong) UITextField *textField;
 @property (nonatomic, strong) SettingsTextView *textView;
 @property (nonatomic, strong) UIWebView *webView;
 @property (nonatomic, strong) UIButton *button;
 @property (nonatomic, weak) SettingsViewController *viewController;
 
+// This weird fix is needed to get the SettingsViewController running in iOS 8 Beta 5
+@property (readwrite, strong) UIInputViewController *inputViewController;
+
 - (void)switchOnOff:(id)sender;
 - (void)buttonSelected:(id)sender;
 
 @end
+
+@interface SettingsPickerView : UIPickerView <UIPickerViewDataSource, UIPickerViewDelegate>
+
+@property (nonatomic, strong, getter=parentCell, setter=setParentCell:) SettingsViewCell *parentCell;
+@property (nonatomic, strong, getter=choices, setter=setChoices:) NSArray *choices;
+
+@end
+
 
 @interface SettingsTextView : UITextView
 

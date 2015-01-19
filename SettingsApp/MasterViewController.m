@@ -3,7 +3,10 @@
 //  SettingsApp
 //
 //  Created by Andreas Werder on 1/19/14.
-//  Copyright (c) 2014 Andreas Werder. All rights reserved.
+//  Copyright (c) 2014, 2015 Andreas Werder. All rights reserved.
+//
+//  This App has no other functionality than to demonstrate some of
+//  the features of the SettingsViewController class.
 //
 
 #import "MasterViewController.h"
@@ -13,7 +16,6 @@
 @interface MasterViewController () {
   
     NSArray *_objects;
-    UIBarButtonItem *settingsButtonItem;
     NSString *cellIdentifier;
     
     SettingsViewController *settingsViewController;
@@ -51,7 +53,20 @@
     
     [super viewDidAppear:animated];
     
-    _objects = [self settingsOutput:[self settingsInput:self]];
+    _objects = @[
+                 P_MULTIVALUE(@"fullname",          @"Guest"),
+                 P_MULTIVALUE(@"userId",            @"guest"),
+                 P_MULTIVALUE(@"password",          @"anon"),
+                 P_MULTIVALUE(@"emailAddress",      @"guest.name@gmail.com"),
+                 P_MULTIVALUE(@"background",        @(BackgroundColorWhite)),
+                 P_MULTIVALUE(@"iCloud",            @(YES)),
+                 P_MULTIVALUE(@"option",            @(NO)),
+                 P_MULTIVALUE(@"level",             @(1)),
+                 P_MULTIVALUE(@"textView",          @"1\n2\n3\n4\n5"),
+                 P_MULTIVALUE(@"integer",           @(31 * 59)),
+                 P_MULTIVALUE(@"decimal",           @(99.9))
+                 ];
+    
     [self.tableView reloadData];
 }
 
@@ -165,8 +180,8 @@
                           ];
     
     NSArray *subPlist = @[
-                          P_SECTION(@"User", null, login, @"To validate login, please use Log In button"),
-                          P_SECTION(@"Subscription", null, userType, footer)
+                          P_SECTION(@"User", @"user", null, login, @"To validate login, please use Log In button"),
+                          P_SECTION(@"Subscription", @"subscription", null, userType, footer)
                           ];
     
     // Set up top-level (main) property list
@@ -184,7 +199,7 @@
                              ];
     NSArray *general = @[
                          P_ROW(@"Background", SPTypeMultiValue, background, YES, UIKeyboardTypeDefault, noFlags, @"background"),
-                         P_ROW(@"Use iCloud", SPTypeBoolean, @(1), NO, UIKeyboardTypeDefault, noFlags, @"iCloud"),
+                         P_ROW(@"Use iCloud (non-editable)", SPTypeBoolean, @(1), NO, UIKeyboardTypeDefault, noFlags, @"iCloud"),
                          P_ROW(@"Switch", SPTypeBoolean, @(1), YES, UIKeyboardTypeDefault, noFlags, @"option")
                          ];
 
@@ -209,13 +224,25 @@
                          P_ROW(@"Message Response", SPTypeMultiValue, response, YES, UIKeyboardTypeDefault, noFlags, @"response"),
                          P_ROW(@"Instructions", SPTypeMultilineText, @"This is a text view", YES, UIKeyboardTypeAlphabet, @"a", @"textView")
                          ];
+
+    NSArray *baseList = @[
+                          P_ROW(@"Integer Field", SPTypeInteger32, null, YES, UIKeyboardTypeDecimalPad, noFlags, @"integer"),
+                          P_ROW(@"Decimal Field", SPTypeDecimal, null, YES, UIKeyboardTypeDecimalPad, @"", @"decimal"),
+                          ];
     
+    NSArray *baseTypes = @[
+                           P_ROW(@"Edit Base Types", SPTypePList, @[
+                                                                    P_SECTION(@"Base Types", @"baseTypes", null, baseList, null)
+                                                                    ] , NO, UIKeyboardTypeDefault, noFlags, @"decimal")
+                           ];
+
     // Define groups on top level
     NSArray *plist = @[
-                       P_SECTION(@"User", null, user, null),
-                       P_SECTION(@"General", header, general, null),
-                       P_SECTION(@"Message", null, message, null),
-                       P_SECTION(@"Level", null, level, @"A footer text"),
+                       P_SECTION(@"User", @"user", null, user, null),
+                       P_SECTION(@"General", @"general", header, general, null),
+                       P_SECTION(@"Message", @"message", null, message, null),
+                       P_SECTION(@"Level", @"level", null, level, @"A footer text"),
+                       P_SECTION(@"Base Types", @"basic", null, baseTypes, @"A footer text"),
                        ];
     
     return plist;
@@ -258,22 +285,13 @@
     // provided in the method is the initial set of named values that will be used to fill in
     // the property list.
     
-    NSDictionary *values = @{
-                             @"fullname":       @"Guest",
-                             @"userId":         @"guest",
-                             @"password":       @"anon",
-                             @"emailAddress":   @"guest.name@gmail.com",
-                             @"background":     @(BackgroundColorWhite),
-                             @"iCloud":         @(YES),
-                             @"option":         @(NO),
-                             @"level":          @(1),
-                             @"textView":       @"1\n2\n3\n4\n5"
-                             };
+    NSDictionary *values = [NSDictionary dictionaryWithObjects:[_objects valueForKey:@"value"]
+                                                       forKeys:[_objects valueForKey:@"name"]];
     return values;
 }
 
-- (void)settingsDidChange:(id)value forKey:(NSString *)name {
-    
+- (void)settingsDidChange:(id)value forRow:(NSDictionary *)row {
+
     //  SettingsViewController Delegate method that is triggered every time the user ends
     //  editing a property. The callback can be used to update configurations or settings
     //  based on that property.
@@ -282,6 +300,7 @@
     //  has resigned as first responder. Changes cannot be un-done by the app (but the use can
     //  undo them at any time, of course).
     
+    NSString *name = row[@"identifier"];
     NSLog(@"%@ value(%@) name(%@)", NSStringFromSelector(_cmd), value, name);
     
     if ([name isEqualToString:@"background"]) {
@@ -320,8 +339,14 @@
     [self dismissViewControllerAnimated:YES completion:^{
         
         NSDictionary *valuesOut = [settingsViewController valuesOut];
-        _objects = nil;
-        _objects = [self settingsOutput:valuesOut];
+        __block NSMutableArray *objects = [[NSMutableArray alloc] initWithCapacity:[_objects count]];
+        [_objects enumerateObjectsUsingBlock:^(NSDictionary *object, NSUInteger idx, BOOL *stop){
+            if (valuesOut[object[@"name"]])
+                [objects addObject:[NSDictionary dictionaryWithObjects:@[valuesOut[object[@"name"]], object[@"name"]] forKeys:@[@"value", @"name"]]];
+            else
+                [objects addObject:[_objects objectAtIndex:idx]];
+        }];
+        _objects = objects;
         [self.tableView reloadData];
     }];
 }

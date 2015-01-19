@@ -3,7 +3,7 @@
 //  ChefsHand
 //
 //  Created by Andreas Werder on 1/12/14.
-//  Copyright (c) 2014 Material Apps. All rights reserved.
+//  Copyright (c) 2014, 2015 Material Apps. All rights reserved.
 //
 //  Changes history:
 //  2014-01-12  Initial implementation - totally property list driven
@@ -11,6 +11,11 @@
 //  2014-01-27  Added implementation of settings type simple list
 //  2014-03-03  Added implementation of settings type multi-line text view
 //  2014-03-09  Added implementation of settings type HTML text view
+//  2014-09-01  Fixed an issue with inputViewController property for cell with iOS 8
+//  2014-12-16  Added editing capability for integer type properties
+//  2015-01-01  Added picker list type and section key for lookups in PList type sub-settings
+//  2015-01-02  Added default value for picker list
+//  2015-01-04  Row dictionary available in didChange:forRow:; propertiesForRow: now a delegate method
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
 //  application specific settings. SettingsViewController is a subclass of UITableView and
@@ -24,7 +29,9 @@
 //  - String            Single line strings can be used for names, credentials (including
 //                      passwords). A number of settings parameters support keyboard type,
 //                      auto-correction and capitalization plus password obfuscation.
-//  - Integer           Yet to be implemented
+//  - Integer           A simple short or long integer for presentation and editing.
+//  - Decimal           Decimal number, for presentation and editing.
+//  - Date              A full date/time stamp, presentation only (editing not supported).
 //  - Boolean           The user interface for Boolean settings is based on the switch
 //                      (UISwitch) control.
 //  - Multi-line text   Provides a textView that spans across the entire cell for free text
@@ -35,9 +42,8 @@
 //                      row becomes the result. The simple list is similar to the multi-
 //                      value list except that it presents all choices on the current
 //                      level.
-//
-//  - Custom            ...
-//                      ...
+//  - Custom            Read-only property that is displayed using the provided callbacks
+//                      that determine height and cell context for presentation.
 //
 //  Multi-level types:  Invoke the SettingsViewController recursively for as many levels
 //                      as required.
@@ -47,6 +53,10 @@
 //                      a title-value tuple per choice. The controller displays the title
 //                      but the result returned is given by the corresponding value for
 //                      the title.
+//  - Picker List       Similar to the multi-value option, a Picker List allows the selection
+//                      of a specific value from a list but through the Picker metaphor.
+//                      Providing a default value will result in a simple list for which
+//                      the user can select either the default or the picker value. 
 //  - Property list     The property list is again a dictionary with the same structure as
 //                      the top level property list. Any level of recursive nesting is
 //                      supported.
@@ -68,41 +78,96 @@
 //                      optional methods to be implemented by the calling class.
 //
 //  -settingsInput:sender:
-//                      Callback used to provide a dictionary of name/value tuples to be
-//                      used as initial values in the propery lists. The names of the values
-//                      presented must match the identifier provided for the particular
+//                      Required callback used to provide a dictionary of name/value tuples
+//                      to be used as initial values in the propery lists. The names of the
+//                      values presented must match the identifier provided for the particular
 //                      property.
 //
-//  -settingsDidChange:forKey:
-//                      Callback that is invoked in the protocol delegate whenever a value
-//                      from the property list has been changed by the user.
+//  -propertiesForRow:rowDictionary:
+//                      Optional callback that implements the dynamic composition of recursive
+//                      Property lists. The method is called every time a property list is being
+//                      built dynamically. To take correct action the rowDictionary parameter
+//                      must be checked for instance for the IDENTIFIER.
 //
-//  -didDismissModalView:
+//  -settingsDefault:sender:
+//                      Optional callback similar to the settingsInput method which is used to
+//                      provide default values for properties. The method must return a
+//                      dictionary of default name/value pairs.
+//
+//  -settingsDidChange:forRow:
+//                      Optional callback that is invoked in the protocol delegate whenever a
+//                      value from the property list has been changed by the user.
+//
+//  -willDismissModalView:sender:
+//                      Callback invoked BEFORE the didDismissModalView is invoked. The callback
+//                      can be used to determine if the SettingsViewControlller has to be
+//                      dismissed for instance when changes to the properties must be committed.
+//
+//  -didDismissModalView:sender:
 //                      Callback that must implement one of the dismissController methods
 //                      used by the UIViewController class to release a controller.
 //
+//  Delegate Protocol for Custom type properties:
+//
+//  -customSetting:heightForRowAtIndexPath:
+//                      Optional callback that can be used to specifiy the height of a Custom
+//                      cell. The indexPath must be used to distinguish between custom cells
+//                      if multiple properties are formatted with custom cells.
+//
+//  -customSetting:cellForRowAtIndexPath:
+//                      Optional callback for format a SettingsViewCell. Again, the indexPath
+//                      parameter must be used to distinguish between different custom cells
+//                      if multiple properties are formatted with custom cells. The method is
+//                      similar to the tableView:cellForRowAtIndexPath: method and it must
+//                      return a correctly built SettimngsViewCell object. The style of the
+//                      cell must be specified by the VALUE parameter of the row dictionary.
+//
+//  Extension for Class SettingsViewCell:
+//                      The SettingsViewCell class can be extended in the parent view controller
+//                      to add standard functionality for editing properties. To edit multi-line
+//                      or HTML text fields, a UITextView field is used which implements the
+//                      canPerformAction:withSender: callback to support a context menu.
+//                      The extension can be used to overwrite the default behavior.
+//
+
 
 #import "SettingsViewController.h"
 
-static NSString *cellIdentifierDefault;
-static NSString *cellIdentifierCustom;
-static NSString *headerViewIdentifier;
+// Cell and Title View identifiers
+static NSString * const cellIdentifierDefault = @"SettingsViewCellDefault";
+static NSString * const cellIdentifierCustom = @"SettingsViewCellCustom";
+static NSString * const headerViewIdentifier = @"SectionHeaderView";
+
+// Keys to the various dictionaries.
+static NSString * const TITLE = @"title";
+static NSString * const KEY = @"key";
+static NSString * const HEADER = @"header";
+static NSString * const ROWS = @"rows";
+static NSString * const FOOTER = @"footer";
+static NSString * const NAME = @"name";
+static NSString * const TYPE = @"type";
+static NSString * const VALUE = @"value";
+static NSString * const EDIT = @"edit";
+static NSString * const KEYBOARDTYPE = @"kbType";
+static NSString * const FLAGS = @"flags";
+static NSString * const IDENTIFIER = @"identifier";
 
 @interface SettingsViewController () {
     
     SettingsViewController *settingsViewController;
     NSArray *pList;
     UIMenuController *menuController;
-    
 }
 
 - (NSDictionary *)rowForIndexPath:(NSIndexPath *)indexPath;
+
 @end
 
 
 @implementation SettingsViewController
 
-@synthesize delegate, nestingLevel, valuesIn, valuesOut, menuController;
+@synthesize delegate, nestingLevel, valuesIn, valuesOut, valuesDefault;
+@synthesize menuController, selectedIndexPath;
 
 - (id)initWithProperties:(NSArray *)properties {
     
@@ -118,17 +183,15 @@ static NSString *headerViewIdentifier;
         // Initialize tableView
         [self.tableView setDelegate:self];
         [self.tableView setDataSource:self];
-        
+        [self.tableView setAllowsSelection:YES];
+
         // TableView configuration. We register the subclass of UITableViewCell to
         // get a protoype. The cell is initialized in initWithStyle:reuseIdentifier:.
-        
-        cellIdentifierDefault = @"SettingsViewCellDefault";
-        cellIdentifierCustom = @"SettingsViewCellCustom";
+
         [self.tableView registerClass:[SettingsViewCell class]
                forCellReuseIdentifier:cellIdentifierDefault];
         // [self.tableView registerClass:[SettingsViewCell class] forCellReuseIdentifier:cellIdentifierCustom];
         
-        headerViewIdentifier = @"SectionHeaderView";
         [self.tableView registerClass:[UITableViewHeaderFooterView class]
             forHeaderFooterViewReuseIdentifier:headerViewIdentifier];
     }
@@ -153,7 +216,6 @@ static NSString *headerViewIdentifier;
     if (!settingsViewController) {
         
         // Case 1: Initialize valuesOut mutable dictionary.
-        
         if (nestingLevel == 0) {
             
             // Overwrite the right button to show a Done button which is used to dismiss the modal
@@ -164,14 +226,14 @@ static NSString *headerViewIdentifier;
                                                       target:self action:@selector(dismissView:)];
             [self.navigationItem setHidesBackButton:YES];
             
-            // Now get the settings initial values; they will be carried in valuesIn while
-            // changed settins are in valuesOut.
+            // Now get the settings initial values and the default values; they will be carried in
+            // valuesIn and valuesDefault while changed settings are in valuesOut.
             
-            if ([delegate respondsToSelector:@selector(settingsInput:)])
-                valuesIn = [delegate settingsInput:self];
+            valuesIn = [delegate settingsInput:self];
+            if ([delegate respondsToSelector:@selector(settingsDefault:)])
+                valuesDefault = [delegate settingsDefault:self];
             valuesOut = [[NSMutableDictionary alloc] initWithCapacity:5];
         }
-        
     } else {
         
         // Case 2: Merge changes of values from lower levels with changes on current level.
@@ -195,21 +257,43 @@ static NSString *headerViewIdentifier;
 
 #pragma mark - SettingsViewController internal methods that invoke delegate protocol methods
 
-- (void)didChange:(id)value forKey:(NSString *)name {
+- (void)didChange:(id)value forRow:(NSDictionary *)row {
     
     // Captures a changed value and updates the valueOut mutable dictionary. It also
     // re-builds the valueIn dictionary. When completed it then gives the protocol delegate
     // a chance to take action.
     // Only change the value if it is different from the previous generation.
     
-    if (![value isEqual:[valuesIn valueForKey:name]]) {
-        NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:name];
+    if (![value isEqual:[valuesIn valueForKey:row[IDENTIFIER]]]) {
+        NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:row[IDENTIFIER]];
         [valuesOut addEntriesFromDictionary:dictionary];
         valuesIn = [self mergeValues:valuesOut];
         
         // Invoke protocol delegate method if defined.
-        if ([delegate respondsToSelector:@selector(settingsDidChange:forKey:)])
-            [delegate performSelector:@selector(settingsDidChange:forKey:) withObject:value withObject:name];
+        if ([delegate respondsToSelector:@selector(settingsDidChange:forRow:)])
+            [delegate performSelector:@selector(settingsDidChange:forRow:) withObject:value withObject:row];
+    }
+}
+
+- (void)didChange:(id)value forKey:(NSString *)name {
+    
+    // Same method as didChange:forRow but instead of the row dictionary only the
+    // IDENTIFIER (name) has to be provided. This method is a bit straightforward
+    // and we'll leave it for compatibility reasons with earlier Settings VC releases.
+    
+    if (![value isEqual:[valuesIn valueForKey:name]]) {
+        NSDictionary *dictionary = [NSDictionary dictionaryWithObject:value forKey:name];
+        [valuesOut addEntriesFromDictionary:dictionary];
+        valuesIn = [self mergeValues:valuesOut];	
+        
+        // Invoke protocol delegate method if defined. Note that we need a row dictionary
+        // but since we don't have it at this point we construct a down-stripped dictionary
+        // with just the value and the identifier (name).
+        
+        if ([delegate respondsToSelector:@selector(settingsDidChange:forRow:)]) {
+            NSDictionary *rowDictionary = @{VALUE: value, IDENTIFIER: name};
+            [delegate performSelector:@selector(settingsDidChange:forRow:) withObject:value withObject:rowDictionary];
+        }
     }
 }
 
@@ -231,6 +315,15 @@ static NSString *headerViewIdentifier;
     return tmp;
 }
 
+- (NSDictionary *)rowDictionary:(NSIndexPath *)indexPath {
+    
+    // Unpublished method that retrieves the row dictionary for a given indexPath.
+    NSDictionary *section = [pList objectAtIndex:indexPath.section];
+    return [[section valueForKey:ROWS] objectAtIndex:indexPath.row];
+}
+
+
+
 #pragma mark - Table view data source
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -243,10 +336,10 @@ static NSString *headerViewIdentifier;
     
     // Auxiliary method to select the rows based on indexPath and type.
     NSArray *sectionArray = [pList objectAtIndex:indexPath.section];
-    NSArray *rows = [sectionArray valueForKey:@"rows"];
+    NSArray *rows = [sectionArray valueForKey:ROWS];
     NSDictionary *firstRow = [rows firstObject];
     
-    if ([[firstRow valueForKey:@"type"] integerValue] == SPTypeSimpleList)
+    if ([[firstRow valueForKey:TYPE] integerValue] == SPTypeSimpleList)
         return firstRow;
     else
         return [rows objectAtIndex:indexPath.row];
@@ -255,12 +348,16 @@ static NSString *headerViewIdentifier;
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     
     NSInteger numberOfRows = 0;
-    NSArray *sectionArray = [pList objectAtIndex:section];
-    NSArray *rows = [sectionArray valueForKey:@"rows"];
+    NSDictionary *sectionArray = [pList objectAtIndex:section];
+    NSArray *rows = sectionArray[ROWS];
     numberOfRows = [rows count];
     
-    if (numberOfRows == 1 && [[[rows firstObject] valueForKey:@"type"] integerValue] == SPTypeSimpleList) {
-        NSArray *choices = [[rows valueForKey:@"value"] firstObject];
+    // We need to handle special case here of a simple list. Anything else is standard.
+    // Note that thre is a restriction that when a simple list is used the section must
+    // only contain ONE row.
+    
+    if (numberOfRows == 1 && [[[rows firstObject] valueForKey:TYPE] integerValue] == SPTypeSimpleList) {
+        NSArray *choices = [[rows valueForKey:VALUE] firstObject];
         numberOfRows = [choices count];
     }
     
@@ -273,14 +370,14 @@ static NSString *headerViewIdentifier;
     BOOL canEdit = NO;
     
     NSDictionary *section = [pList objectAtIndex:indexPath.section];
-    NSArray *rows = [section valueForKey:@"rows"];
+    NSArray *rows = [section valueForKey:ROWS];
     
     // If we have a type unequal to SPTypeSimpleList then we can take the edit flag from
     // the row. Simple lists cannot be edited, so we return a NO for those.
     
-    if ([[[rows firstObject] valueForKey:@"type"] integerValue] != SPTypeSimpleList) {
-        NSDictionary *rowDictionary = [[section valueForKey:@"rows"] objectAtIndex:indexPath.row];
-        if ([[rowDictionary valueForKey:@"edit"] boolValue])
+    if ([[[rows firstObject] valueForKey:TYPE] integerValue] != SPTypeSimpleList) {
+        NSDictionary *rowDictionary = [[section valueForKey:ROWS] objectAtIndex:indexPath.row];
+        if ([rowDictionary[EDIT] boolValue])
             canEdit = YES;
         else
             canEdit = NO;
@@ -292,7 +389,7 @@ static NSString *headerViewIdentifier;
     
     CGFloat rowHeight = UITableViewAutomaticDimension;
     NSDictionary *section = [pList objectAtIndex:indexPath.section];
-    NSArray *rows = [section valueForKey:@"rows"];
+    NSArray *rows = [section valueForKey:ROWS];
     NSString *detailText;
     UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
 
@@ -300,43 +397,42 @@ static NSString *headerViewIdentifier;
     // we check if we have a multi-line text view. If so, we take a height large enough for a bunch
     // of lines.
     
-    NSDictionary *row = [rows objectAtIndex:indexPath.row];
-    SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:@"type"] integerValue];
-
-    switch (type) {
-        case SPTypeSimpleList:
-            // No action at all, use default row height.
-            break;
-            
-        case SPTypeCustom:
-            // Get the row height from the delegate protocol method.
-            if ([delegate respondsToSelector:@selector(customSetting:heightForRowAtIndexPath:)])
-                rowHeight = [delegate customSetting:self heightForRowAtIndexPath:indexPath];
-            break;
-            
-        case SPTypeHTML:
-            font = [UIFont fontWithName:@"Courier New" size:15.0];
-            // A break; statement is intentionally omitted here to share the code with the default case.
-
-        default:
-
-            // Calculate the row height for all other cases.
-            if (type == SPTypeMultilineText || type == SPTypeHTML) {
-                id tmp = [valuesIn valueForKey:[row valueForKey:@"identifier"]];
-                if ([NSStringFromClass([tmp class]) isEqualToString:@"NSNull"])
-                    detailText = @"";
-                detailText = [NSString stringWithFormat:@"%@", tmp];
-                BOOL editMode = [[row valueForKey:@"edit"] boolValue];
+    if ([[rows firstObject][TYPE] integerValue] != SPTypeSimpleList) {
+        NSDictionary *row = [rows objectAtIndex:indexPath.row];
+        SettingsPropertyType type = (SettingsPropertyType)[[row valueForKey:TYPE] integerValue];
+        
+        switch (type) {
                 
-                CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
-                CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
-                                                        options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
-                                                     attributes:@{NSFontAttributeName: font}
-                                                        context:nil];
-                // We give quite a bit of empty space initially and also add 3 to 4 empty lines if in edit mode.
-                rowHeight = ([detailText length] == 0) ? MAX(250.0, frame.size.height) : MAX(40.0, frame.size.height) + editMode * 32.0f;
+            case SPTypeCustom:
+                // Get the row height from the delegate protocol method.
+                if ([delegate respondsToSelector:@selector(customSetting:heightForRowAtIndexPath:)])
+                    rowHeight = [delegate customSetting:self heightForRowAtIndexPath:indexPath];
                 break;
-            }
+                
+            case SPTypeHTML:
+                font = [UIFont fontWithName:@"Courier New" size:16.0];
+                // A break; statement is intentionally omitted here to share the code with the default case.
+                
+            default:
+                
+                // Calculate the row height for all other cases.
+                if (type == SPTypeMultilineText || type == SPTypeHTML) {
+                    id tmp = [valuesIn valueForKey:[row valueForKey:IDENTIFIER]];
+                    if ([NSStringFromClass([tmp class]) isEqualToString:@"NSNull"])
+                        detailText = @"";
+                    detailText = [NSString stringWithFormat:@"%@", tmp];
+                    BOOL editMode = [[row valueForKey:EDIT] boolValue];
+                    
+                    CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width * 0.8, CGFLOAT_MAX);
+                    CGRect frame = [detailText boundingRectWithSize:maximumLabelSize
+                                                            options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading)
+                                                         attributes:@{NSFontAttributeName: font}
+                                                            context:nil];
+                    // We give quite a bit of empty space initially and also add 3 to 4 empty lines if in edit mode.
+                    rowHeight = ([detailText length] == 0) ? MAX(250.0, frame.size.height) : MAX(40.0, frame.size.height) + editMode * 32.0f;
+                    break;
+                }
+        }
     }
     return rowHeight;
 }
@@ -349,8 +445,8 @@ static NSString *headerViewIdentifier;
     // in an envelope where we don't want to display the synthetic envelope layer.
     
     NSString *title;
-    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
-    if (type != SPTypeMultiValue)
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:TYPE] integerValue];
+    if (type != SPTypeMultiValue && type != SPTypePickerList)
         title = [[pList objectAtIndex:section] valueForKey:@"title"];
     else
         title = @"";
@@ -364,10 +460,10 @@ static NSString *headerViewIdentifier;
     // the tableView:viewForHeaderInSection: is called. 
 
     CGFloat headerHeight = UITableViewAutomaticDimension;
-    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:TYPE] integerValue];
     NSString *header = [[pList objectAtIndex:section] valueForKey:@"header"];
     
-    if (type != SPTypeMultiValue && ![header isEqual:[NSNull null]]) {
+    if (type != SPTypeMultiValue && type != SPTypePickerList && ![header isEqual:[NSNull null]]) {
         CGSize maximumLabelSize = CGSizeMake(tableView.frame.size.width, CGFLOAT_MAX);
         UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
         CGRect frame = [header boundingRectWithSize:maximumLabelSize
@@ -387,7 +483,7 @@ static NSString *headerViewIdentifier;
     NSString *title, *header;
     UITableViewHeaderFooterView *sectionHeaderView;
     
-    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:TYPE] integerValue];
     sectionHeaderView = [tableView dequeueReusableHeaderFooterViewWithIdentifier:headerViewIdentifier];
     
     if (type != SPTypeMultiValue) {
@@ -421,7 +517,7 @@ static NSString *headerViewIdentifier;
     // the tableView:viewForFooterInSection: is called.
     
     CGFloat footerHeight = UITableViewAutomaticDimension;
-    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:@"type"] integerValue];
+    SettingsPropertyType type = (SettingsPropertyType)[[[pList objectAtIndex:section] valueForKey:TYPE] integerValue];
     NSString *footer = [[pList objectAtIndex:section] valueForKey:@"footer"];
     
     if (type != SPTypeMultiValue && ![footer isEqual:[NSNull null]]) {
@@ -466,7 +562,8 @@ static NSString *headerViewIdentifier;
     // when not SPTypeSimpleList.
     
     NSDictionary *rowDictionary = [self rowForIndexPath:indexPath];
-    SettingsPropertyType type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
+    SettingsPropertyType type = (SettingsPropertyType)[rowDictionary[TYPE] integerValue];
+    SettingsPickerView *pickerView;
     
     // We have registered the class so this always gives us a valid cell. Choose either default or
     // then custom type depending on Settings type.
@@ -477,7 +574,7 @@ static NSString *headerViewIdentifier;
         // Handle custom cell initialization here.
         cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifierCustom];
         if (!cell)
-            cell = [[SettingsViewCell alloc] initWithStyle:[[rowDictionary valueForKey:@"value"] integerValue]
+            cell = [[SettingsViewCell alloc] initWithStyle:[rowDictionary[VALUE] integerValue]
                                            reuseIdentifier:cellIdentifierCustom];
         if ([delegate respondsToSelector:@selector(customSetting:cellForRowAtIndexPath:)])
             cell = [delegate customSetting:cell cellForRowAtIndexPath:indexPath];
@@ -489,14 +586,15 @@ static NSString *headerViewIdentifier;
     [cell setViewController:self];
     [cell setTag:indexPath.row];
     [cell setRowDictionary:rowDictionary];
-
+    
     UITableViewCellAccessoryType accessoryType = UITableViewCellAccessoryNone;
     UITableViewCellSelectionStyle selectionStyle = UITableViewCellSelectionStyleNone;
-    UIKeyboardType keyboardType = UIKeyboardTypeDefault;
+    UIKeyboardType keyboardType = UIKeyboardTypeAlphabet;
     UISwitch *accessoryView;
     CGFloat maxRowHeight = 400.0f;
     NSDictionary *choicesDictionary;
     NSString *formatted;
+    NSDateFormatter *dateFormatter;
     
     // Clean up the cell from: remove textView and button if we had some from previous runs.
     if (type != SPTypeMultilineText && type != SPTypeHTML)
@@ -507,22 +605,24 @@ static NSString *headerViewIdentifier;
             [cell.button removeFromSuperview];
 
     // Get flags for the editing and keyboard properties of the detail text label.
-    BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
-    NSString *flags = [rowDictionary valueForKey:@"flags"];
+    BOOL editable = [rowDictionary[EDIT] boolValue];
+    NSString *flags = rowDictionary[FLAGS];
     BOOL capitalized = NSNotFound != [flags rangeOfCharacterFromSet:
                                       [NSCharacterSet characterSetWithCharactersInString:@"c"]].location;
-    BOOL autocorrect = NSNotFound != [flags rangeOfCharacterFromSet:
+    BOOL autoCorrect = NSNotFound != [flags rangeOfCharacterFromSet:
                                       [NSCharacterSet characterSetWithCharactersInString:@"a"]].location;
     BOOL secure = NSNotFound != [flags rangeOfCharacterFromSet:
                                  [NSCharacterSet characterSetWithCharactersInString:@"s"]].location;
-    [cell.textLabel setText:[rowDictionary valueForKey:@"name"]];
+    BOOL detectLinks = NSNotFound != [flags rangeOfCharacterFromSet:
+                                      [NSCharacterSet characterSetWithCharactersInString:@"k"]].location;
+    [cell.textLabel setText:rowDictionary[NAME]];
     
     // Extract the value for the key from the property list dictionary - if there is one.
     id value, choices;
-    NSString *identifier = [rowDictionary valueForKey:@"identifier"];
+    NSString *identifier = rowDictionary[IDENTIFIER];
     if (identifier)
         value = [valuesIn valueForKey:identifier];
-    choices = [rowDictionary valueForKey:@"value"];
+    choices = rowDictionary[VALUE];
     
     switch (type) {
         case SPTypeString:
@@ -531,13 +631,13 @@ static NSString *headerViewIdentifier;
             // text attributes if required.
             
             if (editable) {
-                keyboardType = [[rowDictionary valueForKey:@"kbType"] integerValue];
+                keyboardType = [rowDictionary[KEYBOARDTYPE] integerValue];
                 [cell.textField setKeyboardType:keyboardType];
                 if (capitalized)
                     [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeWords];
                 else
                     [cell.textField setAutocapitalizationType:UITextAutocapitalizationTypeNone];
-                if (autocorrect)
+                if (autoCorrect)
                     [cell.textField setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
                     [cell.textField setAutocorrectionType:UITextAutocorrectionTypeNo];
@@ -552,10 +652,53 @@ static NSString *headerViewIdentifier;
             else
                 [cell.detailTextLabel setText:@" "];
             [cell.textField setEnabled:editable];
+            if (detectLinks) {
+                [cell.textView setDataDetectorTypes:UIDataDetectorTypeLink];
+                [cell.textView setSelectable:YES];
+            }
             break;
             
         case SPTypeInteger32:
-            //
+
+            // Format an integer into a string
+            [cell.textField setAutocorrectionType:UITextAutocorrectionTypeNo];
+            [cell.detailTextLabel setText:[NSString stringWithFormat:@"%ld", (long)[(NSNumber *)value integerValue]]];
+
+            if (editable) {
+                [cell.textField setKeyboardType:UIKeyboardTypeDecimalPad];
+                [cell.textField setSecureTextEntry:NO];
+                [cell.textField setEnabled:editable];
+            }
+            break;
+            
+        case SPTypeDecimal:
+            
+            // Format a number into a string; use the flags parameter for the formatting.
+            // If no format has been specified then use the default string representation.
+            
+            [cell.textField setAutocorrectionType:UITextAutocorrectionTypeNo];
+            [cell.detailTextLabel setText:([flags length] == 0) ?
+                                                                [value stringValue] :
+                                                                [NSString stringWithFormat:flags, [value floatValue]]];
+            if (editable) {
+                [cell.textField setKeyboardType:UIKeyboardTypeDecimalPad];
+                [cell.textField setSecureTextEntry:NO];
+                [cell.textField setEnabled:editable];
+            }
+            break;
+            
+        case SPTypeDate:
+            
+            // Format a complete date and time value into a string. At the moment we do
+            // not allow the date value to be edited.
+            
+            dateFormatter = [[NSDateFormatter alloc] init];
+            [dateFormatter setDateFormat:@"YYYY-MMM-dd HH:mm"];
+            [cell.textField setAutocorrectionType:UITextAutocorrectionTypeNo];
+            [cell.detailTextLabel setText:[dateFormatter stringFromDate:value]];
+            
+            [cell.textField setSecureTextEntry:NO];
+            [cell.textField setEnabled:NO];
             break;
             
         case SPTypeBoolean:
@@ -595,15 +738,19 @@ static NSString *headerViewIdentifier;
             
             [cell.detailTextLabel setText:formatted];
             [cell.textView setEditable:editable];
+            if (detectLinks) {
+                [cell.textView setDataDetectorTypes:UIDataDetectorTypeLink];
+                [cell.textView setSelectable:YES];
+            }
 
             if (editable) {
-                keyboardType = [[rowDictionary valueForKey:@"kbType"] integerValue];
+                keyboardType = [rowDictionary[KEYBOARDTYPE] integerValue];
                 [cell.textView setKeyboardType:keyboardType];
                 if (capitalized)
                     [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeWords];
                 else
                     [cell.textView setAutocapitalizationType:UITextAutocapitalizationTypeSentences];
-                if (autocorrect)
+                if (autoCorrect)
                     [cell.textView setAutocorrectionType:UITextAutocorrectionTypeYes];
                 else
                     [cell.textView setAutocorrectionType:UITextAutocorrectionTypeNo];
@@ -616,13 +763,71 @@ static NSString *headerViewIdentifier;
             // Expand the list provided as an array in the value field. Mark the current choice
             // as selected if it atches the currently seting in the valueIn dictionary.
             
-            [cell.textLabel setText:[[choices objectAtIndex:indexPath.row] valueForKey:@"name"]];
+            [cell.textLabel setText:[[choices objectAtIndex:indexPath.row] valueForKey:NAME]];
             selectionStyle = UITableViewCellSelectionStyleDefault;
-            NSInteger selectedRow = [[[choices objectAtIndex:indexPath.row] valueForKey:@"value"] integerValue];
+            NSInteger selectedRow = [[[choices objectAtIndex:indexPath.row] valueForKey:VALUE] integerValue];
             if ([(NSNumber *)value integerValue] == selectedRow) {
                 accessoryType = UITableViewCellAccessoryCheckmark;
                 [self.tableView selectRowAtIndexPath:indexPath animated:YES scrollPosition:UITableViewScrollPositionNone];
             }
+            break;
+            
+        case SPTypePickerList:
+            
+            // A picker field provides a list for the selection. The result is the value associated
+            // with a title (name) in the list that becomes the result (and not the index into
+            // that list).
+            
+        case SPTypeMultiValue:
+            
+            // A multi-value field provides a drop-down list for the selection but at the
+            // end it's the value associated with a title (name) in the list that becomes the
+            // result (and not the index into that list).
+            
+            choicesDictionary = [NSDictionary dictionaryWithObjects:[choices valueForKey:NAME]
+                                                            forKeys:[choices valueForKey:VALUE]];
+            [cell.detailTextLabel setText:[choicesDictionary objectForKey:value]];
+            [cell.textField setEnabled:NO];
+            
+            if (editable) {
+                selectionStyle = UITableViewCellSelectionStyleDefault;
+                accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else {
+                selectionStyle = UITableViewCellSelectionStyleNone;
+                accessoryType = UITableViewCellAccessoryNone;
+            }
+            break;
+
+        case SPTypePList:
+            
+            // Handle drop down lists and nested property lists here. See the implementation of the
+            // multi-level types in the tableView:didSelectRowAtIndexPath: method.
+            
+            if ([[identifier componentsSeparatedByString:@"."] count] == 1) {
+                NSObject *value = valuesIn[identifier];
+                if ([self primitiveType:value] == 0)
+                    [cell.detailTextLabel setText:(NSString *)value];
+                else
+                    [cell.detailTextLabel setText:[(NSNumber *)value stringValue]];
+            } else {
+                // Here we handle the lookup of a variable whose lookup dictionary is somewhere deep
+                // in the propery sub-list. The way to specifiy such a lookup is through a keypath
+                // with the 'identifier' parameter of the type Plist setting (row).
+                // It has the form:
+                //      <sectionKey>.<rowKey>
+                
+                NSArray *keyPath = [identifier componentsSeparatedByString:@"."];
+                NSAssert([keyPath count] > 1, @"Keypath %@ for lookup must be of length 2", identifier);
+                NSDictionary *subPList = [NSDictionary dictionaryWithObjects:choices forKeys:[choices valueForKey:@"key"]];
+                NSArray *rows = subPList[[keyPath firstObject]][ROWS];
+                NSDictionary *rowDictionaries = [NSDictionary dictionaryWithObjects:rows forKeys:[rows valueForKey:IDENTIFIER]];
+                NSArray *subChoices = rowDictionaries[[keyPath objectAtIndex:1]][VALUE];
+                NSDictionary *lookup = [NSDictionary dictionaryWithObjects:subChoices forKeys:[subChoices valueForKey:VALUE]];
+                [cell.detailTextLabel setText:[lookup objectForKey:[valuesIn valueForKey:[keyPath objectAtIndex:1]]][NAME]];
+            }
+
+            selectionStyle = UITableViewCellSelectionStyleDefault;
+            accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             break;
             
         case SPTypeChoice:
@@ -637,37 +842,20 @@ static NSString *headerViewIdentifier;
             }
             break;
             
-        case SPTypeMultiValue:
-            
-            // A multi-value field provides a drop-down list for the selection but at the
-            // end it's the value associated with a title in the list that becomes the result
-            // (and not the index into that list).
-            
-            choicesDictionary = [NSDictionary dictionaryWithObjects:[choices valueForKey:@"name"]
-                                                            forKeys:[choices valueForKey:@"value"]];
-            [cell.detailTextLabel setText:[choicesDictionary objectForKey:value]];
-            [cell.textField setEnabled:NO];
-            
-            if (editable) {
-                selectionStyle = UITableViewCellSelectionStyleDefault;
-                accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            } else {
-                selectionStyle = UITableViewCellSelectionStyleNone;
-                accessoryType = UITableViewCellAccessoryNone;
-            }
+        case SPTypePickerView:
+
+            // Here we handle the pickerview for a multi-value field.
+            pickerView = [[SettingsPickerView alloc] initWithFrame:(CGRect){0.0f, self.view.frame.size.height / 2,
+                self.view.frame.size.width, self.view.frame.size.height / 2}];
+            [pickerView setParentCell:cell];
+            [pickerView setChoices:choices];
+            [self.view addSubview:pickerView];
+            NSUInteger index = [[choices valueForKey:NAME] indexOfObject:[cell.textLabel text]];
+            NSAssert(index != NSNotFound, @"Dictionary for value(%@) not found", [cell.textLabel text]);
+            [pickerView selectRow:index inComponent:0 animated:YES];
+
             break;
-            
-        case SPTypePList:
-            
-            // Handle drop down lists and nested property lists here. See the implementation of the
-            // multi-level types in the tableView:didSelectRowAtIndexPath: method.
-            
-            [cell.detailTextLabel setText:[valuesIn valueForKey:identifier]];
-            
-            selectionStyle = UITableViewCellSelectionStyleDefault;
-            accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            break;
-            
+
         case SPTypeAction:
             
             // Handle the formatting of cells for actions here. Overlay a button over the entire
@@ -682,9 +870,13 @@ static NSString *headerViewIdentifier;
                 cell.button = [UIButton buttonWithType:UIButtonTypeCustom];
             [cell.button setFrame:(CGRect){0.0, 0.0, cell.frame.size.width, self.tableView.rowHeight}];
             for (NSDictionary *state in choices) {
-                UIControlState controlState = [[state valueForKey:@"value"] integerValue];
-                [cell.button setTitle:[state valueForKey:@"name"] forState:controlState];
+                UIControlState controlState = [[state valueForKey:VALUE] integerValue];
+                [cell.button setTitle:[state valueForKey:NAME] forState:controlState];
                 switch (controlState) {
+                    case UIControlStateNormal:
+                        [cell.button setTitleColor:[UIColor blueColor] forState:controlState];
+                        [cell.button setEnabled:NO];
+                        break;
                     case UIControlStateDisabled:
                         [cell.button setTitleColor:[UIColor lightGrayColor] forState:controlState];
                         [cell.button setEnabled:NO];
@@ -695,6 +887,8 @@ static NSString *headerViewIdentifier;
                         break;
                     case UIControlStateHighlighted:
                         [cell.button setHighlighted:YES];
+                        [cell.button setTitleColor:[UIColor blueColor] forState:controlState];
+                        break;
                     case UIControlStateApplication:
                         [cell.button setTitleColor:[UIColor redColor] forState:controlState];
                         break;
@@ -721,6 +915,8 @@ static NSString *headerViewIdentifier;
                     [cell.button setSelected:YES];
                     break;
                 case UIControlStateHighlighted:
+                    [cell.button setEnabled:YES];
+                    [cell.button setSelected:NO];
                     [cell.button setHighlighted:YES];
                 case UIControlStateApplication:
                     break;
@@ -728,7 +924,6 @@ static NSString *headerViewIdentifier;
                     break;
             }
             
-            [cell.button setBackgroundColor:[UIColor whiteColor]];
             [cell.button addTarget:cell action:@selector(buttonSelected:) forControlEvents:UIControlEventTouchUpInside];
             [cell.contentView addSubview:cell.button];
             [cell.textLabel setHidden:YES];
@@ -755,15 +950,15 @@ static NSString *headerViewIdentifier;
     // selected one.
     
     NSDictionary *rowDictionary = [self rowForIndexPath:indexPath];
-    SettingsPropertyType type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
-    BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
+    selectedIndexPath = indexPath;
+    SettingsPropertyType type = (SettingsPropertyType)[rowDictionary[TYPE] integerValue];
+    BOOL editable = [rowDictionary[EDIT] boolValue];
     
     NSIndexPath *oldIndex = [self.tableView indexPathForSelectedRow];
     
     if (![oldIndex isEqual:indexPath]) {
         
-        NSString *identifier = [rowDictionary valueForKey:@"identifier"];
-        NSObject *value = [rowDictionary valueForKey:@"value"];
+        NSObject *value = rowDictionary[VALUE];
         
         switch (type) {
             case SPTypeSimpleList:
@@ -772,7 +967,7 @@ static NSString *headerViewIdentifier;
                     [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
                     [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
                     [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
-                    [self didChange:[[(NSArray *)value objectAtIndex:indexPath.row] valueForKey:@"value"] forKey:identifier];
+                    [self didChange:[[(NSArray *)value objectAtIndex:indexPath.row] valueForKey:VALUE] forRow:rowDictionary];
                 }
                 break;
                 
@@ -782,8 +977,16 @@ static NSString *headerViewIdentifier;
                     [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
                     [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
                     [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
-                    [self didChange:value forKey:identifier];
+                    [self didChange:value forRow:rowDictionary];
                 }
+                break;
+
+            case SPTypePickerView:
+                // Picker view is always editable. But since it's part of a simple list we do not needto set the
+                // value that has changed yet (overwriting the value would destroy the choices anyway).
+                [self.tableView cellForRowAtIndexPath:oldIndex].accessoryType = UITableViewCellAccessoryNone;
+                [self.tableView cellForRowAtIndexPath:indexPath].accessoryType = UITableViewCellAccessoryCheckmark;
+                [self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
                 break;
                 
             default:
@@ -794,31 +997,48 @@ static NSString *headerViewIdentifier;
     return indexPath;
 }
 
+- (NSUInteger)primitiveType:(NSObject *)value {
+    
+    // Get the enumeration index of the class for an object.
+    // Class name for primitives is __NSCF + [Number| String| Boolean].
+    
+    NSString *primitiveClass = NSStringFromClass([[value copy] class]);
+    NSArray *primitives = @[@"ConstantString", @"String", @"Boolean", @"Number", @"Float"];
+    NSArray *mapping = @[@(0), @(0), @(1), @(2), @(3)];
+    NSRange prefix = [primitiveClass rangeOfString:@"__NSCF"];
+    NSString *type = [primitiveClass substringWithRange:(NSRange){prefix.length, [primitiveClass length] - prefix.length}];
+    NSUInteger index = [primitives indexOfObject:type];
+    return (index >= [primitives count]) ? NSNotFound : [[mapping objectAtIndex:index] longValue];
+}
+
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     
-    // Get the row definition
+    // Get the row definition first.
     // NSDictionary *section = [pList objectAtIndex:indexPath.section];
-    // NSDictionary *rowDictionary = [[section valueForKey:@"rows"] objectAtIndex:indexPath.row];
+    // NSDictionary *rowDictionary = [[section valueForKey:ROWS] objectAtIndex:indexPath.row];
     NSDictionary *rowDictionary = [self rowForIndexPath:indexPath];
     NSMutableArray *rows;
     
-    NSInteger type = [[rowDictionary valueForKey:@"type"] integerValue];
-    NSString *identifier = [rowDictionary valueForKey:@"identifier"];
-    NSObject *value = [rowDictionary valueForKey:@"value"];
-    BOOL editable = [[rowDictionary valueForKey:@"edit"] boolValue];
+    // NSLog(@"Selected row(%ld) name(%@) value(%@)", (long)indexPath.row, rowDictionary[IDENTIFIER], valuesIn[IDENTIFIER]);
+    
+    NSInteger type = [rowDictionary[TYPE] integerValue];
+    NSString *identifier = rowDictionary[IDENTIFIER];
+    NSObject *value = rowDictionary[VALUE];
+    BOOL editable = [rowDictionary[EDIT] boolValue];
+    SettingsPropertyType subType;
     
     switch (type) {
             
         case SPTypeSimpleList:
         case SPTypeChoice:
             
-            // Both types are primarily handled in the tableView:willSelectRowAtIndexPath: method.
+            // All these types are primarily handled in the tableView:willSelectRowAtIndexPath: method.
             //[self.tableView cellForRowAtIndexPath:indexPath].selectionStyle = UITableViewCellSelectionStyleNone;
             
             break;
-            
+
         case SPTypeMultiValue:
             
             // The property is a multi-value field for which the next level of the SettingsViewController is
@@ -829,15 +1049,78 @@ static NSString *headerViewIdentifier;
             // on the next level down. The envelope section will not be displayed and is titleless instead. Note
             // that the multi-level type becomes a <SPTypeChoice> on the row level in the pushed viewcontroller.
             
+        case SPTypePickerList:
+            
+            // The property is a multi-value field but for the selection we use a more complex structure:
+            // 1)   On the next level down we have a simple list with two elements:
+            //      - the first row is the default
+            //      - the second row is the vallue that we pick from the UIPickerView
+            // 2)   A separate UIPickerView view at the bottom of the SettingsView that is large enough for
+            //      handling big picker lists.
+            // Note that for the second row we will use an internal type of SPTypePickerView to distinguish
+            // the property list from the multi-value type (for which we use the internal type SPTypeChoice).
+            
             if (editable) {
-                rows = [[NSMutableArray alloc] initWithCapacity:[(NSArray *)value count]];
-                for (NSDictionary *row in (NSArray *)value)
-                    [rows addObject: P_ROW([row valueForKey:@"name"], SPTypeChoice, [row valueForKey:@"value"], editable, UIKeyboardTypeDefault, @"", identifier)];
                 
-                // This will become the new property list on the next lower level.
-                value = @[
-                          @{@"title": @"Envelope", @"type": @(SPTypeMultiValue), @"rows": rows }
-                          ];
+                NSArray *pickerList;
+                NSDictionary *pickerDictionary;
+                NSString *initialValue;
+                
+                subType = (type == SPTypePickerList) ? SPTypePickerView : SPTypeChoice;
+                rows = [[NSMutableArray alloc] initWithCapacity:[(NSArray *)value count]];
+
+                // Build the new property list on the next lower level on the fly. We use different
+                // lists for the multi-value and the picker list type.
+
+                switch (type) {
+                    case SPTypeMultiValue:
+
+                        for (NSDictionary *row in (NSArray *)value)
+                            [rows addObject: P_ROW([row valueForKey:NAME], subType, [row valueForKey:VALUE], \
+                                                   editable, UIKeyboardTypeAlphabet, @"", identifier)];
+                        value = @[@{TITLE: @"Envelope", TYPE: @(type), ROWS: rows }];
+                        break;
+
+                    case SPTypePickerList:
+                    {
+                        pickerDictionary = [NSDictionary dictionaryWithObjects:(NSArray *)value
+                                                                       forKeys:[value valueForKey:VALUE]];
+                        initialValue = pickerDictionary[valuesIn[rowDictionary[IDENTIFIER]]][NAME];
+                        
+                        // If we have a default value for the identifier we provide the envelope with 2 rows.
+                        if (valuesDefault[rowDictionary[IDENTIFIER]]) {
+                            
+                            // We do have a default value; let's create two rows with the first row
+                            // as the default value. We also remove the default value from the choices.
+
+                            NSMutableArray *defaultOmitted = [value mutableCopy];
+                            NSDictionary *defaultValue = pickerDictionary[valuesDefault[rowDictionary[IDENTIFIER]]];
+                            [defaultOmitted removeObject:defaultValue];
+                            
+                            // If the initial value of the property is equal to the default value we'll choose
+                            // the first choice as the initial value for the picker view.
+                            if ([initialValue isEqualToString:defaultValue[NAME]] || !initialValue)
+                                initialValue = [defaultOmitted firstObject][NAME];
+                            pickerList = @[
+                                           P_ROW(defaultValue[NAME], SPTypeChoice, \
+                                                 defaultValue[VALUE], YES, 0, @"", identifier),
+                                           P_ROW(initialValue, SPTypePickerView, defaultOmitted, YES, 0, @"", identifier)
+                                           ];
+                        } else {
+                            // We only have a single row as there is now default value.
+                            pickerList = @[
+                                           P_ROW(initialValue, SPTypePickerView, value, YES, 0, @"", identifier)
+                                           ];
+                        }
+                        value = @[
+                                  @{TITLE: @"", TYPE: @(SPTypeSimpleList), ROWS: pickerList, KEY: identifier}
+                                  ];
+                    }
+
+                        break;
+                    default:
+                        break;
+                }
             } else
                 break;
             
@@ -852,15 +1135,31 @@ static NSString *headerViewIdentifier;
             // by the use of the back button.
             
             if (!settingsViewController) {
-                settingsViewController = [[SettingsViewController alloc] initWithProperties:(NSArray *)value];
+                
+                // Check if we have a non-empty property list. Proceed if so. Request one through the
+                // delegate method otherwise. The test for class NSArray is a bit crappy. 
+                
+                if ([NSStringFromClass([value class]) rangeOfString:@"NSArray"].location < 3) {
+                    settingsViewController = [[SettingsViewController alloc] initWithProperties:(NSArray *)value];
+                } else {
+                    NSArray *properties;
+                    if ([delegate respondsToSelector:@selector(propertiesForRow:)]) {
+                        properties = [delegate propertiesForRow:rowDictionary];
+                        settingsViewController = [[SettingsViewController alloc] initWithProperties:properties];
+                    } else {
+                        NSLog(@"Must provide a propertiesForRow: delegate method for %@", rowDictionary[identifier]);
+                        break;
+                    }
+                }
                 [settingsViewController setNestingLevel:nestingLevel + 1];
                 [settingsViewController setDelegate:delegate];
             }
-            [settingsViewController setTitle:[rowDictionary valueForKey:@"name"]];
+            [settingsViewController setTitle:rowDictionary[NAME]];
             [settingsViewController setValuesIn:self.valuesIn];
+            [settingsViewController setValuesDefault:self.valuesDefault];
             [self.navigationController pushViewController:settingsViewController animated:YES];
             break;
-            
+
         case SPTypeAction:
             
             // Property is of type action, i.e. a callback to be invoked with the full set of current property values
@@ -877,8 +1176,14 @@ static NSString *headerViewIdentifier;
 
 @end
 
+#pragma mark
+#pragma mark - SettingsViewCell implementation
+
 
 @implementation SettingsViewCell
+
+    static UIView *lastEditedField;
+
 
 @synthesize textField, textView, webView, rowDictionary, viewController, button;
 
@@ -903,6 +1208,16 @@ static NSString *headerViewIdentifier;
             [textField setTextAlignment:NSTextAlignmentLeft];
             [textField setUserInteractionEnabled:YES];
             [textField setReturnKeyType:UIReturnKeyDone];
+
+            [textField setKeyboardAppearance:UIKeyboardAppearanceLight];
+            [textField setKeyboardType:UIKeyboardTypeAlphabet];
+         
+            // iOS 8 introduced a UIInputViewController which handles custom keyboard views.
+            // For some reasons I use somewhere a setting that maked iOS believe I'm using a custom
+            // keyboard. The property is read-only but it can be overwritten in the interface
+            // definition to read-write. Settings the inputViewController property access to read-write
+            // fixes the '-[InputViewController _keyboard]: unrecognized selector...' issue. Note that
+            // it's not even necessary to overwrite the value with nil.
         }
     }
 
@@ -915,7 +1230,6 @@ static NSString *headerViewIdentifier;
     
     // Let the labels size themselves to accommodate their text
     [super layoutSubviews];
-    // NSLog(@"Cell(%i) name(%@)", self.tag, [rowDictionary valueForKey:@"identifier"]);
     
     [self.textLabel sizeToFit];
     [self.detailTextLabel sizeToFit];
@@ -938,8 +1252,13 @@ static NSString *headerViewIdentifier;
     indent = tabs * (2 + indent / tabs);
     
     // Adjust textField for input.
-    SettingsPropertyType type = (SettingsPropertyType)[[rowDictionary valueForKey:@"type"] integerValue];
+    SettingsPropertyType type = (SettingsPropertyType)[rowDictionary[TYPE] integerValue];
+    
     switch (type) {
+        case SPTypeInteger32:
+        case SPTypeDecimal:
+        case SPTypeDate:
+            [self.textField setTextAlignment:NSTextAlignmentRight];
         case SPTypeString:
             
             // String properties are left justified. We need to trick the tableView cell here as
@@ -947,12 +1266,14 @@ static NSString *headerViewIdentifier;
             // want it to be left justified.
             
             textFrame = (CGRect){indent, detailFrame.origin.y,
-                self.contentView.frame.size.width - indent - 50.0f, detailFrame.size.height};
+                self.contentView.frame.size.width - indent - 40.0f, detailFrame.size.height};
             [self.textField setText:self.detailTextLabel.text];
             [self.textField setFont:[UIFont systemFontOfSize:self.detailTextLabel.font.pointSize]];
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textField setFrame:textFrame];
+            [self.textField setTextAlignment:NSTextAlignmentRight];
             [self.contentView addSubview:textField];
+            [self.textView removeFromSuperview];
             [self.textLabel setHidden:NO];
             [self.detailTextLabel setHidden:YES];
             
@@ -973,8 +1294,13 @@ static NSString *headerViewIdentifier;
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textView setFrame:textFrame];
             [self.contentView addSubview:textView];
+            [self.textField removeFromSuperview];
             [self.textLabel setHidden:YES];
             [self.detailTextLabel setHidden:YES];
+            if ([self.textView dataDetectorTypes] > 0) {
+                [self.textView setSelectable:YES];
+            } else
+                [self.textView setSelectable:NO];
             
             break;
             
@@ -1003,6 +1329,7 @@ static NSString *headerViewIdentifier;
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textView setFrame:textFrame];
             [self.contentView addSubview:textView];
+            [self.textField removeFromSuperview];
             [self.textLabel setHidden:YES];
             [self.detailTextLabel setHidden:YES];
             
@@ -1011,7 +1338,7 @@ static NSString *headerViewIdentifier;
         case SPTypeMultiValue:
             
             // Multi-value properties cannot be changed on this level and so the current value is
-            // informative and ddisplayed right justified.
+            // informative and displayed right justified.
             
             textFrame = (CGRect){detailFrame.origin.x + offset, detailFrame.origin.y,
                 detailFrame.size.width -= offset, detailFrame.size.height};
@@ -1020,18 +1347,35 @@ static NSString *headerViewIdentifier;
             [self.textField setTextColor:[UIColor lightGrayColor]];
             [self.detailTextLabel setBackgroundColor:[UIColor clearColor]];
             [self.textField setFrame:textFrame];
+            [self.textField setTextAlignment:NSTextAlignmentRight];
             [self.contentView addSubview:textField];
+            [self.textView removeFromSuperview];
             [self.textLabel setHidden:NO];
             [self.detailTextLabel setHidden:YES];
             
             break;
             
+        case SPTypeSimpleList:
+            
+            // Make sure that any remaining text from a previous cell is not displayed here.
+            // We just want the accessory mark.
+
+            [self.detailTextLabel setHidden:YES];
+            break;
+            
         case SPTypeCustom:
+
             // We don't perform anything in layoutSubviews for the custom cell. All the formatting
             // has to be done on the delegate protocol method for custom cells.
             
             break;
             
+        case SPTypeAction:
+
+            // We need to reset the button frame again - it may have been resized. Another iOS 8 feature...
+            [self.button setFrame:self.contentView.frame];
+            break;
+
         default:
             
             [self.detailTextLabel setHidden:NO];
@@ -1047,7 +1391,7 @@ static NSString *headerViewIdentifier;
     // The status is read from the switch and both values dictionaries are updated.
     
     UISwitch *onOffSwitch = (UISwitch *)self.accessoryView;
-    [viewController didChange:@(onOffSwitch.on) forKey:[self.rowDictionary valueForKey:@"identifier"]];
+    [viewController didChange:@(onOffSwitch.on) forRow:rowDictionary];
 }
 
 - (void)buttonSelected:(id)sender {
@@ -1055,14 +1399,22 @@ static NSString *headerViewIdentifier;
     // Method triggered by a selected button for an action type property. This method
     // invokes the user defined callback for the property.
     
-    NSString *selector = [self.rowDictionary valueForKey:@"flags"];
-    NSString *value = [self.rowDictionary valueForKey:@"identifier"];
+    NSString *selector = rowDictionary[FLAGS];
+    NSString *value = rowDictionary[IDENTIFIER];
+    SEL action = NSSelectorFromString(selector);
+
+    NSMethodSignature *signature = [(UIViewController *)viewController.delegate methodSignatureForSelector:action];
+
+    // At this point we still may have a textField that is still firstResponder. This seems to be the
+    // only way to force an end of the editing so that we actually get the correct value (for the user ID and
+    // the password).
+    
+    [lastEditedField endEditing:YES];
     
     // Since we want the callback to return the UIControlState of the button we need to use NSInvocation
     // class to capture the return value.
     
     if (value) {
-        SEL action = NSSelectorFromString(selector);
         
         UIControlState controlState;
         if ([viewController.delegate respondsToSelector:action]) {
@@ -1072,6 +1424,9 @@ static NSString *headerViewIdentifier;
             [invocation setSelector:action];
             [invocation setTarget:viewController.delegate];
             [invocation setArgument:&sender atIndex:2];
+            if ([signature numberOfArguments] > 3)
+                [invocation setArgument:&rowDictionary atIndex:3];
+
             [invocation invoke];
             [invocation getReturnValue:&controlState];
             
@@ -1103,36 +1458,148 @@ static NSString *headerViewIdentifier;
     viewController.valuesIn = [viewController mergeValues:viewController.valuesOut];
 }
 
+- (void)textFieldDidBeginEditing:(UITextField *)aTextField {
+
+    // Keep the last edited textField so we can end editing when the user jumps to an action button directly.
+    lastEditedField = aTextField;
+}
+
 - (void)textFieldDidEndEditing:(UITextField *)aTextField {
     
     // Dismiss keyboard, give up first responder capability. Then read the string and update both values dictionaries.
     // Triggered when the user ends editing by jumping to the next property.
     
-    [aTextField resignFirstResponder];
-    [viewController didChange:aTextField.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
+    NSObject *value;
+    NSLog(@"Changing name for %@", rowDictionary[IDENTIFIER]);
+    [aTextField endEditing:YES];
+
+    // TODO: We have a problem here that we get the wrong rowDictionary when we skip fields during editing.
+    // if (self.tag != viewController.selectedIndexPath.row) {
+    //     NSDictionary *rd = [viewController rowDictionary:viewController.selectedIndexPath];
+    //     NSLog(@"Cell(%li) label(%@) name(%@) sp(%@)", (long)self.tag, self.textLabel.text, rowDictionary[IDENTIFIER], rd[IDENTIFIER]);
+    // }
+
+    // Do some data type conversion here, specifically string to number
+    // formats. e don't handle any validation errors and just use the simple
+    // conversion method offered by the integerValue and floatValue methods.
+    
+    switch ((SettingsPropertyType)[rowDictionary[TYPE] integerValue]) {
+        case SPTypeInteger32:
+            value = @([[aTextField text] integerValue]);
+            break;
+
+        case SPTypeDecimal:
+            value = @([[aTextField text] floatValue]);
+            break;
+
+        case SPTypeDate:
+            // TODO: Add date conversion here.
+            break;
+            
+        default:
+            value = [aTextField text];
+            break;
+    }
+    [viewController didChange:value forRow:rowDictionary];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)aTextField {
     
     // Dismiss keyboard, give up first responder capability. Triggered when the user hits return on the keyboard.
-    [aTextField resignFirstResponder];
+    [aTextField endEditing:YES];
     return YES;
+}
+
+- (void)textViewDidBeginEditing:(UITextView *)aTextView {
+    
+    // Keep the last edited textField so we can end editing when the user jumps to an action button directly.
+    lastEditedField = aTextView;
 }
 
 - (BOOL)textViewShouldEndEditing:(UITextView *)aTextView {
     
     // Dismiss keyboard, give up first responder capability. Triggered when the user hits return on the keyboard.
-    [aTextView resignFirstResponder];
-    [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
+    [aTextView endEditing:YES];
+    [viewController didChange:aTextView.text forRow:rowDictionary];
     return YES;
 }
 
 - (void)textViewDidEndEditing:(UITextView *)aTextView {
     
-    [viewController didChange:aTextView.text forKey:[self.rowDictionary valueForKey:@"identifier"]];
+    [aTextView endEditing:YES];
+    [viewController didChange:aTextView.text forRow:rowDictionary];
+}
+
+- (void)textViewDidChange:(UITextView *)textView {
+    
 }
 
 @end
+
+@implementation SettingsPickerView
+
+@synthesize parentCell = _parentCell;
+@synthesize choices = _choices;
+
+- (id)initWithFrame:(CGRect)frame {
+    
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.delegate = (id<UIPickerViewDelegate>)self;
+        self.dataSource = (id<UIPickerViewDataSource>)self;
+        [self setUserInteractionEnabled:YES];
+        
+    }
+    return self;
+}
+
+- (SettingsViewCell *)parentCell { return _parentCell; }
+- (void)setParentCell:(SettingsViewCell *)parentCell { _parentCell = parentCell; }
+
+- (NSArray *)choices { return _choices; }
+- (void)setChoices:(NSArray *)choices { _choices = choices; }
+
+#pragma mark -
+#pragma mark SettingsPickerViewController DataSource and Delegate methods
+
+- (NSInteger)numberOfComponentsInPickerView:(UIPickerView *)pickerView {
+    
+    return 1;
+}
+
+- (NSInteger)pickerView:(UIPickerView *)pickerView numberOfRowsInComponent:(NSInteger)component {
+    
+    return [_choices count];
+    
+}
+
+- (NSString *)pickerView:(UIPickerView *)pickerView
+             titleForRow:(NSInteger)row
+            forComponent:(NSInteger)component {
+    
+    return [_choices objectAtIndex:row][NAME];
+}
+
+- (void)pickerView:(UIPickerView *)pickerView
+      didSelectRow:(NSInteger)row
+       inComponent:(NSInteger)component {
+    
+    SettingsViewController *viewController = (SettingsViewController *)[self.parentCell viewController];
+    NSObject *value = [_choices objectAtIndex:row][VALUE];
+    [[self.parentCell textLabel] setText:[_choices objectAtIndex:row][NAME]];
+
+    // We also need to select the row of the parent cell. For some reasons we need to explicitly send
+    // the willSelectRowAtIndexPath to the delegate.
+    
+    NSIndexPath *indexPath = [viewController.tableView indexPathForCell:self.parentCell];
+    [viewController.tableView.delegate tableView:viewController.tableView willSelectRowAtIndexPath:indexPath];
+
+    // Notify the delegate method of the change.
+    [viewController didChange:value forRow:self.parentCell.rowDictionary];
+}
+
+@end
+
 
 @implementation SettingsTextView
 
