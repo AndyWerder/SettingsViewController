@@ -112,7 +112,8 @@
     NSArray *keys = [self pListKeys];
     isFLipped = NO;
     
-    settingsViewController = [[SettingsViewController alloc] initWithProperties:keys];
+    settingsViewController = [[SettingsViewController alloc] init];
+    [settingsViewController setPropertyList:keys];
     [settingsViewController setDelegate:self];
     
     // Create a Navigation controller
