@@ -70,31 +70,40 @@ typedef enum {
 - (NSDictionary *)settingsInput:(id)sender;
 
 @optional
-- (NSArray *)propertiesForRow:(NSDictionary *)rowDictionary;
+- (NSArray *)willChangePropertiesForRow:(NSDictionary *)rowDictionary;
+- (void)didChangePropertiesForRow:(NSDictionary *)rowDictionary;
 - (NSDictionary *)settingsDefault:(id)sender;
 - (void)settingsDidChange:(id)value forRow:(NSDictionary *)row;
+- (NSArray *)refreshPropertiesList:(NSArray *)properties;
 - (void)willDismissModalView:(id)sender;
 - (void)didDismissModalView:(id)sender;
 - (CGFloat)customSetting:(id)settingsViewController heightForRowAtIndexPath:(NSIndexPath *)indexPath;
+- (BOOL)customSetting:(id)settingsViewController commitDeleteForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (SettingsViewCell *)customSetting:(SettingsViewCell *)cell cellForRowAtIndexPath:(NSIndexPath *)indexPath;
 
 @end
 
 @interface SettingsViewController : UITableViewController
 
+@property (nonatomic, strong) NSArray *propertyList;
+@property (nonatomic, strong, readonly) NSDictionary *rowDictionary;
 @property (nonatomic, strong) id<SettingsViewControllerDelegate> delegate;
 @property (nonatomic, strong) NSDictionary *valuesIn;
 @property (nonatomic, strong) NSMutableDictionary *valuesOut;
 @property (nonatomic, strong) NSDictionary *valuesDefault;
+@property (nonatomic, strong) NSString *valuesId;
 @property (nonatomic, strong) UIMenuController *menuController;
 @property (nonatomic, strong) NSIndexPath *selectedIndexPath;
+@property (nonatomic, strong) SettingsViewController *settingsViewController;
 
 @property (nonatomic, assign) NSInteger nestingLevel;
 
-- (id)initWithProperties:(NSArray *)properties;
+- (id)init;
+- (void)setPropertiesForRow:(NSDictionary *)row;
 - (void)didChange:(id)value forKey:(NSString *)name;
 - (void)didChange:(id)value forRow:(NSDictionary *)row;
 - (void)dismissViewController;
+- (NSDictionary *)rowForIndexPath:(NSIndexPath *)indexPath;
 
 @end
 
