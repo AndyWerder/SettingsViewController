@@ -11,6 +11,9 @@
 //  this copyright and permission notice. Attribution in compiled projects is
 //  appreciated but not required.
 //
+//  Changes history:
+//  2015-09-07  Introduced 2 new macros P_GET/SET_ARRAY to facilitate indexed properties
+//
 
 #import <UIKit/UIKit.h>
 
@@ -62,6 +65,10 @@ typedef enum {
 #define P_ROW(NAME, TYPE, VALUE, EDIT, KEYBOARDTYPE, FLAGS, IDENTIFIER) @{@"name": NAME, @"type": @(TYPE), @"value": VALUE, @"edit": @(EDIT), @"kbType": @(KEYBOARDTYPE), @"flags": FLAGS, @"identifier": IDENTIFIER }
 #define P_MULTIVALUE(NAME, VALUE) @{@"name": (NAME), @"value": (VALUE) }
 
+#define P_SET_ARRAY(NAME, IDX, VALUE) ([NSDictionary dictionaryWithObject:VALUE forKey:[NSString stringWithFormat:@"%@%ld", NAME, (long)IDX]])
+#define P_GET_ARRAY(NAME, IDX) ([NSString stringWithFormat:@"%@%ld", NAME, (long)IDX])
+
+
 @class SettingsViewCell;
 @class SettingsTextView, SettingsTextField;
 
@@ -80,6 +87,8 @@ typedef enum {
 - (CGFloat)customSetting:(id)settingsViewController heightForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (BOOL)customSetting:(id)settingsViewController commitDeleteForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (SettingsViewCell *)customSetting:(SettingsViewCell *)cell cellForRowAtIndexPath:(NSIndexPath *)indexPath;
+- (void)customSetting:(id)settingsViewController layoutSubviews:(SettingsViewCell *)cell;
+- (void)customSetting:(id)settingsViewController touchedView:(UIView *)view;
 
 @end
 

@@ -136,6 +136,10 @@
 //
 // - customSetting:commitDeleteForRowAtIndexPath:
 //
+// - customSetting:touchedView:
+//                      An optional callback that is invoked when a view of a custom cell with a
+//                      non-zero tag is touched. This can be used to present a detail of the
+//                      item presented with the custom cell, like an image.
 //
 //  Extension for Class SettingsViewCell:
 //                      The SettingsViewCell class can be extended in the parent view controller
@@ -479,6 +483,67 @@ static NSString * const IDENTIFIER = @"identifier";
     }
 }
 
+    /* --- Use this template for implementing an Edit feature on the overall properties level -- */
+    /*
+    // SettingsViewController Delegate protocol method: 
+    // - (BOOL)customSetting:(id)settingsViewController commitEditForRowAtIndexPath:(NSIndexPath *)indexPath;
+
+- (NSArray *)tableView:(UITableView *)tableView editActionsForRowAtIndexPath:(NSIndexPath *)indexPath {
+    
+    // This is a TableView delegate method only supported in iOS8 and later. For iOS7 we do not support
+    // the edit action and use the commitEditingStyle callback for the delete action only.
+    
+    NSDictionary *section = [_propertyList objectAtIndex:indexPath.section];
+    NSArray *rows = [section valueForKey:ROWS];
+    
+    // Define delegate method for EDIT action in custom cells.
+    UITableViewRowAction *editAction = [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleNormal title:@"Edit" handler:
+                                        ^(UITableViewRowAction *action, NSIndexPath *indexPath){
+
+                                            // If we have a type unequal to SPTypeSimpleList then we can take the edit flag from
+                                            // the row. Simple lists cannot be edited, so we return a NO for those.
+                                            
+                                            if ([[[rows firstObject] valueForKey:TYPE] integerValue] != SPTypeSimpleList) {
+                                                if ([delegate respondsToSelector:@selector(customSetting:commitEditForRowAtIndexPath:)]) {
+                                                    [delegate performSelector:@selector(customSetting:commitEditForRowAtIndexPath:)
+                                                                   withObject:self
+                                                                   withObject:indexPath];
+                                                    if ([delegate respondsToSelector:@selector(refreshPropertiesList:)]) {
+                                                        _propertyList = [delegate refreshPropertiesList:_propertyList];
+                                                        [self.tableView reloadData];
+                                                    }
+                                                }
+                                            }
+                                        }];
+    [editAction setBackgroundColor:[UIColor lightGrayColor]];
+    
+    // Define delegate method for EDIT action in custom cells.
+    UITableViewRowAction *deleteAction = [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive title:@"Delete" handler:
+                                          ^(UITableViewRowAction *action, NSIndexPath *indexPath){
+                                              
+                                              // If we have a type unequal to SPTypeSimpleList then we can take the edit flag from
+                                              // the row. Simple lists cannot be edited, so we return a NO for those.
+                                              
+                                              if ([[[rows firstObject] valueForKey:TYPE] integerValue] != SPTypeSimpleList) {
+                                                  if ([delegate respondsToSelector:@selector(customSetting:commitDeleteForRowAtIndexPath:)]) {
+                                                      [delegate performSelector:@selector(customSetting:commitDeleteForRowAtIndexPath:)
+                                                                     withObject:self
+                                                                     withObject:indexPath];
+                                                      if ([delegate respondsToSelector:@selector(refreshPropertiesList:)]) {
+                                                          _propertyList = [delegate refreshPropertiesList:_propertyList];
+                                                          [self.tableView reloadData];
+                                                      }
+                                                  }
+                                              }
+                                          }];
+    [deleteAction setBackgroundColor:[UIColor redColor]];
+    
+    
+    return @[deleteAction, editAction];
+}
+
+ */
+
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     
     CGFloat rowHeight = UITableViewAutomaticDimension;
@@ -674,6 +739,7 @@ static NSString * const IDENTIFIER = @"identifier";
         cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifierDefault
                                                forIndexPath:indexPath];
         [cell.textLabel setText:rowDictionary[NAME]];
+        [cell.textField setText:@""];
     }
     
     // Configure the cell.
@@ -761,8 +827,8 @@ static NSString * const IDENTIFIER = @"identifier";
             if (editable) {
                 [cell.textField setKeyboardType:UIKeyboardTypeDecimalPad];
                 [cell.textField setSecureTextEntry:NO];
-                [cell.textField setEnabled:editable];
             }
+            [cell.textField setEnabled:editable];
             break;
             
         case SPTypeDecimal:
@@ -777,8 +843,8 @@ static NSString * const IDENTIFIER = @"identifier";
             if (editable) {
                 [cell.textField setKeyboardType:UIKeyboardTypeDecimalPad];
                 [cell.textField setSecureTextEntry:NO];
-                [cell.textField setEnabled:editable];
             }
+            [cell.textField setEnabled:editable];
             break;
             
         case SPTypeDate:
@@ -898,6 +964,7 @@ static NSString * const IDENTIFIER = @"identifier";
             // Handle drop down lists and nested property lists here. See the implementation of the
             // multi-level types in the tableView:didSelectRowAtIndexPath: method.
             
+            [cell.textField setEnabled:NO];
             if ([[identifier componentsSeparatedByString:@"."] count] == 1) {
                 NSObject *value = valuesIn[identifier];
                 if ([self primitiveType:value] == 0)
@@ -918,8 +985,14 @@ static NSString * const IDENTIFIER = @"identifier";
                 NSArray *rows = subPList[[keyPath firstObject]][ROWS];
                 NSDictionary *rowDictionaries = [NSDictionary dictionaryWithObjects:rows forKeys:[rows valueForKey:IDENTIFIER]];
                 NSArray *subChoices = rowDictionaries[[keyPath objectAtIndex:1]][VALUE];
-                NSDictionary *lookup = [NSDictionary dictionaryWithObjects:subChoices forKeys:[subChoices valueForKey:VALUE]];
-                [cell.detailTextLabel setText:[lookup objectForKey:[valuesIn valueForKey:[keyPath objectAtIndex:1]]][NAME]];
+                if (subChoices) {
+                    NSDictionary *lookup = [NSDictionary dictionaryWithObjects:subChoices forKeys:[subChoices valueForKey:VALUE]];
+                    [cell.detailTextLabel setText:[lookup objectForKey:[valuesIn valueForKey:[keyPath objectAtIndex:1]]][NAME]];
+                } else {
+                    // If we can't find the key in the sub-proerty list we'll try to use the property value.
+                    NSObject *tmp = [valuesIn valueForKey:[keyPath lastObject]];
+                    [cell.detailTextLabel setText:[NSString stringWithFormat:@"%@", tmp]];
+                }
             }
 
             selectionStyle = UITableViewCellSelectionStyleDefault;
@@ -1511,6 +1584,9 @@ static NSString * const IDENTIFIER = @"identifier";
             // We don't perform anything in layoutSubviews for the custom cell. All the formatting
             // has to be done on the delegate protocol method for custom cells.
             
+            if ([self.viewController.delegate respondsToSelector:@selector(customSetting:layoutSubviews:)])
+                [self.viewController.delegate customSetting:self.viewController layoutSubviews:self];
+            
             break;
             
         case SPTypeAction:
@@ -1685,6 +1761,23 @@ static NSString * const IDENTIFIER = @"identifier";
 
 - (void)textViewDidChange:(UITextView *)textView {
     
+}
+
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    
+    // We allow this for image views in custom cells when touched.
+    // The view must have a non-zero tag; otherwise we let the UITableViewCell
+    // handle the touches.
+    
+    UITouch *touched = [touches anyObject];
+    if (touched.view.tag == 0) {
+        // Let the tableview cell handle the touches.
+        [super touchesBegan:touches withEvent:event];
+    } else {
+        // Pass the touch event to a potential delegate method. 
+        if ([self.viewController.delegate respondsToSelector:@selector(customSetting:touchedView:)])
+            [self.viewController.delegate customSetting:self.viewController touchedView:touched.view];
+    }
 }
 
 @end
