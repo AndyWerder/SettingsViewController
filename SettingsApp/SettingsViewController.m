@@ -20,6 +20,7 @@
 //  2015-02-18  Changing properties with didChange:forRow: updates the detailLabel text
 //  2015-05-23  Made first row of picker list editable to add new distinct values
 //  2015-08-09  Added dynamic update of property lists after additions and deletions
+//  2015-09-13  Added delegate callback for custom cell view touches
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
 //  application specific settings. SettingsViewController is a subclass of UITableView and
@@ -454,10 +455,11 @@ static NSString * const IDENTIFIER = @"identifier";
     NSDictionary *section = [_propertyList objectAtIndex:indexPath.section];
     NSArray *rows = [section valueForKey:ROWS];
     
-    if ([[[rows objectAtIndex:indexPath.row] valueForKey:TYPE] shortValue] == SPTypeCustom) {
-        canEdit = YES;
-    } else
-        canEdit = NO;
+    if (indexPath.row < [rows count]) {
+        if ([[[rows objectAtIndex:indexPath.row] valueForKey:TYPE] shortValue] == SPTypeCustom) {
+            canEdit = YES;
+        }
+    }
     
     return canEdit;
 }
@@ -670,6 +672,13 @@ static NSString * const IDENTIFIER = @"identifier";
     return sectionHeaderView;
 }
 
+- (void)tableView:(UITableView *)tableView willDisplayHeaderView:(nonnull UIView *)view forSection:(NSInteger)section {
+
+    // Starting in XCode 7 and iOS 9 we must set the font for the header and foor sections in this delegate method.
+    UITableViewHeaderFooterView *headerView = (UITableViewHeaderFooterView *)view;
+    [headerView.textLabel setFont:[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]];
+}
+
 - (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section {
     
     // The tableView:heightForFooterInSection: delegate method must be present so that
@@ -711,6 +720,13 @@ static NSString * const IDENTIFIER = @"identifier";
         }
     }
     return sectionFooterView;
+}
+
+- (void)tableView:(UITableView *)tableView willDisplayFooterView:(nonnull UIView *)view forSection:(NSInteger)section {
+    
+    // Starting in XCode 7 and iOS 9 we must set the font for the header and foor sections in this delegate method.
+    UITableViewHeaderFooterView *footerView = (UITableViewHeaderFooterView *)view;
+    [footerView.textLabel setFont:[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]];
 }
 
 #pragma mark - Table view cell configuration
@@ -985,7 +1001,7 @@ static NSString * const IDENTIFIER = @"identifier";
                 NSArray *rows = subPList[[keyPath firstObject]][ROWS];
                 NSDictionary *rowDictionaries = [NSDictionary dictionaryWithObjects:rows forKeys:[rows valueForKey:IDENTIFIER]];
                 NSArray *subChoices = rowDictionaries[[keyPath objectAtIndex:1]][VALUE];
-                if (subChoices) {
+                if (subChoices && [NSStringFromClass([subChoices class]) rangeOfString:@"NSArray"].location != NSNotFound) {
                     NSDictionary *lookup = [NSDictionary dictionaryWithObjects:subChoices forKeys:[subChoices valueForKey:VALUE]];
                     [cell.detailTextLabel setText:[lookup objectForKey:[valuesIn valueForKey:[keyPath objectAtIndex:1]]][NAME]];
                 } else {
