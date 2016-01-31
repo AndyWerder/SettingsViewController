@@ -87,8 +87,10 @@ typedef enum {
 - (CGFloat)customSetting:(id)settingsViewController heightForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (BOOL)customSetting:(id)settingsViewController commitDeleteForRowAtIndexPath:(NSIndexPath *)indexPath;
 - (SettingsViewCell *)customSetting:(SettingsViewCell *)cell cellForRowAtIndexPath:(NSIndexPath *)indexPath;
+- (void)customSetting:(SettingsViewCell *)cell didSelectRowAtIndexPath:(NSIndexPath *)indexPath;
 - (void)customSetting:(id)settingsViewController layoutSubviews:(SettingsViewCell *)cell;
 - (void)customSetting:(id)settingsViewController touchedView:(UIView *)view;
+
 
 @end
 
@@ -113,6 +115,7 @@ typedef enum {
 - (void)didChange:(id)value forRow:(NSDictionary *)row;
 - (void)dismissViewController;
 - (NSDictionary *)rowForIndexPath:(NSIndexPath *)indexPath;
+- (void)reset;
 
 @end
 
@@ -130,6 +133,7 @@ typedef enum {
 
 - (void)switchOnOff:(id)sender;
 - (void)buttonSelected:(id)sender;
++ (void)resetLastEditedField;
 
 @end
 

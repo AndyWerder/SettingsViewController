@@ -21,6 +21,9 @@
 //  2015-05-23  Made first row of picker list editable to add new distinct values
 //  2015-08-09  Added dynamic update of property lists after additions and deletions
 //  2015-09-13  Added delegate callback for custom cell view touches
+//  2016-01-01  Added a reset method to allow for multiple generations of settings
+//  2016-01-02  New didSelectRowAtIndexPath delegate method allows selection of custom cell
+//  2016-01-05  Added prepareForReuse method in SettingsViewCell that removes additional subviews 
 //
 //  Self-contained class to provide an iPad Settings app-like user interface for managing
 //  application specific settings. SettingsViewController is a subclass of UITableView and
@@ -80,6 +83,23 @@
 //                      values are returned in the output values dictionary. If no changes
 //                      have been made, the resulting dictionary will be empty.
 //
+//  Interface:
+//
+//  -init               Initialized the SettingsViewController.
+//  -setPropertiesForRow:
+//  -didChange:forKey:
+//                      Method to notify SettingsViewController that a value for key has changed.
+//  -didChange:forRow:
+//                      Method to notify SettingsViewController that a value for key has changed.
+//                      The key is given by a row dictionary instead of the name.
+//  -dismissViewController
+//                      Notify SettingsViewController that the modal SettingsView has been
+//                      dismissed. This will invoke the termination sequence for the
+//                      SettingsViewController and will dismiss it.
+//  -rowForIndexPath:
+//  -reset              Reset the settings and the values; this method should be used when the
+//                      settings are saved and the displayed item is about to change.
+//
 //  Delegate Protocol:  The SettingsViewController uses provides protocol for mandatory and
 //                      optional methods to be implemented by the calling class.
 //
@@ -136,6 +156,10 @@
 //                      cell must be specified by the VALUE parameter of the row dictionary.
 //
 // - customSetting:commitDeleteForRowAtIndexPath:
+//
+// - customSetting:didSelectRowAtIndexPath:
+//                      An optional callback that is invoked when a custom cell is touched.
+//                      This can be used to take action when a child custom cell is selected.
 //
 // - customSetting:touchedView:
 //                      An optional callback that is invoked when a view of a custom cell with a
@@ -251,6 +275,7 @@ static NSString * const IDENTIFIER = @"identifier";
             if ([delegate respondsToSelector:@selector(settingsDefault:)])
                 valuesDefault = [delegate settingsDefault:self];
             valuesOut = [[NSMutableDictionary alloc] initWithCapacity:5];
+            
         } else {
             
             // We give the didChangePropertiesForRow delegate protocol method a chance
@@ -300,7 +325,7 @@ static NSString * const IDENTIFIER = @"identifier";
     _propertyList = [delegate willChangePropertiesForRow:row];
 }
 
-#pragma mark - SettingsViewController internal methods that invoke delegate protocol methods
+#pragma mark - SettingsViewController public methods that invoke delegate protocol methods
 
 - (void)didChange:(id)value forRow:(NSDictionary *)row {
     
@@ -405,7 +430,23 @@ static NSString * const IDENTIFIER = @"identifier";
     return [[section valueForKey:ROWS] objectAtIndex:indexPath.row];
 }
 
-
+- (void)reset {
+    
+    // Refresh the property values; note this is a complete re-initialization of
+    // the property list and the content without pre-serving the previous changes.
+    // This method can be used to switch to a new item. It is only permitted on
+    // the initial nesting level. 
+    
+    if (nestingLevel == 0) {
+        [SettingsViewCell resetLastEditedField];
+        valuesIn = [delegate settingsInput:self];
+        if ([delegate respondsToSelector:@selector(settingsDefault:)])
+            valuesDefault = [delegate settingsDefault:self];
+        valuesOut = [[NSMutableDictionary alloc] initWithCapacity:5];
+        [self.tableView reloadData];
+    } else
+        NSLog(@"Error: Cannot refresh on nesting level greater than 0");
+}
 
 #pragma mark - Table view data source
 
@@ -464,7 +505,8 @@ static NSString * const IDENTIFIER = @"identifier";
     return canEdit;
 }
 
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
+- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
+                                            forRowAtIndexPath:(NSIndexPath *)indexPath {
     
     NSDictionary *section = [_propertyList objectAtIndex:indexPath.section];
     NSArray *rows = [section valueForKey:ROWS];
@@ -1382,6 +1424,21 @@ static NSString * const IDENTIFIER = @"identifier";
             
             break;
             
+        case SPTypeCustom:
+            
+            // This is for custom property cells and can be used to implement an action when for instance a
+            // child custom cell has been selected. To enable this the edit flag in the row dictionary must be on.
+            
+            if (editable) {
+
+                // Invoke protocol delegate method if defined.
+                if ([delegate respondsToSelector:@selector(customSetting:didSelectRowAtIndexPath:)])
+                    [delegate performSelector:@selector(customSetting:didSelectRowAtIndexPath:)
+                                   withObject:[self.tableView cellForRowAtIndexPath:indexPath]
+                                   withObject:indexPath];
+            }
+            break;
+            
         default:
             break;
     }
@@ -1438,6 +1495,19 @@ static NSString * const IDENTIFIER = @"identifier";
     textView = nil;
     
     return self;
+}
+
+- (void)prepareForReuse {
+
+    // Loop through all subviews of the contentView and remove them; this avoid overlays of application
+    // specific views added to the cells and eliminates the need for an application specific cleanup.
+    
+    [super prepareForReuse];
+    [[self.contentView subviews] enumerateObjectsUsingBlock:^(UIView *view, NSUInteger indx, BOOL *stop){
+        if (![[NSStringFromClass([view class]) substringToIndex:2] isEqualToString:@"UI"]) {
+            [view removeFromSuperview];
+        }
+    }];
 }
 
 - (void)layoutSubviews {
@@ -1746,6 +1816,7 @@ static NSString * const IDENTIFIER = @"identifier";
             break;
     }
     [viewController didChange:value forRow:rowDictionary];
+    lastEditedField = nil;
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)aTextField {
@@ -1793,6 +1864,15 @@ static NSString * const IDENTIFIER = @"identifier";
         // Pass the touch event to a potential delegate method. 
         if ([self.viewController.delegate respondsToSelector:@selector(customSetting:touchedView:)])
             [self.viewController.delegate customSetting:self.viewController touchedView:touched.view];
+    }
+}
+
++ (void)resetLastEditedField {
+
+    // Class method to re-initalize the last edited field information. 
+    if (lastEditedField) {
+        [(UITextField *)lastEditedField endEditing:YES];
+        // [(UITextField *)lastEditedField setText:@""];
     }
 }
 
